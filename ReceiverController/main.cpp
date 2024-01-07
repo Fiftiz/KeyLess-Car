@@ -6,6 +6,9 @@
 
 #include "irk.h"
 
+#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+
 #define IRK_LIST_NUMBER 2
 const char * IrkListName[IRK_LIST_NUMBER] = {"A","B"};
 uint8_t irk[IRK_LIST_NUMBER][ESP_BT_OCTET16_LEN]= {
@@ -14,9 +17,11 @@ uint8_t irk[IRK_LIST_NUMBER][ESP_BT_OCTET16_LEN]= {
     // IRK of B
     {0x85,0x89,0x90,0xBE,0x9C,0xBE,0xBC,0xE7,0xFE,0xEE,0x6B,0xCE,0x5E,0x62,0xE9,0x75}
 };
- 
 
-BLEServer* pServer;
+
+// Service et caractéristique Bluetooth personnalisés
+BLEServer* pServer = NULL;
+BLECharacteristic* pCharacteristic = NULL;
 
 int RSSI_THRESHOLD_OPEN = -50;
 int RSSI_THRESHOLD_CLOSED = -70;
@@ -24,6 +29,8 @@ int RSSI_THRESHOLD_CLOSED = -70;
 bool IphoneDetect = false;
 bool proximityDeadZone = false;
 bool carOpen = false;
+
+bool deviceConnected = false;
 
 void BleDataCheckTask() {
     BLEScan *pBLEScan = BLEDevice::getScan();
@@ -80,31 +87,75 @@ void BleDataCheckTask() {
 }
 
 
-//class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
-//{
-//    void onResult(BLEAdvertisedDevice advertisedDevice)
-//    {
-//        // Callback when a BLE device is found
-//    }
-//};
+class MyCallbacks: public BLECharacteristicCallbacks
+{
+  void onWrite(BLECharacteristic *pCharacteristic)
+  {
+    std::string value = pCharacteristic->getValue();
 
+    if (value.length() == 1) {
+      if (value[0] == '1') {
+        //isOpen = true;
+        pCharacteristic->setValue("Open");
+        Serial.println("Open");
+      } else if (value[0] == '0') {
+        //isOpen = false;
+        pCharacteristic->setValue("Closed");
+        Serial.println("Closed");
+      }
+    pCharacteristic->notify();
+    }
+  }
+};
+
+class MyServerCallbacks: public BLEServerCallbacks {
+  void onConnect(BLEServer* pServer) {
+  deviceConnected = true;
+  Serial.println("device connected");
+  };
+
+  void onDisconnect(BLEServer* pServer) {
+  deviceConnected = false;
+  Serial.println("device disconnected");
+  pServer->getAdvertising()->start();
+  }
+};
 
 void setup() {
     Serial.begin(115200);
 
     // Underclock CPU to Energize save
     setCpuFrequencyMhz(80);
-
+    // Initialise le BLE
     BLEDevice::init("Keyless Car");
-    BLEServer *pServer = BLEDevice::createServer();
+    // Crée le serveur BLE
+    pServer = BLEDevice::createServer();
+    BLEService *pService = pServer->createService(SERVICE_UUID);
+    // Crée le caractéristique BLE
+    pCharacteristic = pService->createCharacteristic(
+                                        CHARACTERISTIC_UUID,
+                                        BLECharacteristic::PROPERTY_READ |
+                                        BLECharacteristic::PROPERTY_WRITE |
+                                        BLECharacteristic::PROPERTY_NOTIFY |
+                                        BLECharacteristic::PROPERTY_INDICATE
+                    );
 
-    BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-    pAdvertising->addServiceUUID(BLEUUID("00001800-0000-1000-8000-00805F9B34FB"));
+    // Définit la Callback pour le caractéristique
+    pCharacteristic->setCallbacks(new MyCallbacks());
+    // Définit la Callback pour les connections
+    pServer->setCallbacks(new MyServerCallbacks());
+    // Définit la valeur initiale du caractéristique
+    pCharacteristic->setValue("Closed");
+    // Démarre le service BLE
+    pService->start();
+    // Commence à diffuser le service BLE
+    BLEAdvertising *pAdvertising = pServer->getAdvertising();
     pAdvertising->setScanResponse(true);
     pAdvertising->setMinPreferred(0x06);  // functions that help with iPhone connections issue
     pAdvertising->setMinPreferred(0x12);
+    pAdvertising->start();
 
-    pServer->getAdvertising()->start();
+    Serial.println("Bluetooth Server ok");
 }
 
 void loop() {
