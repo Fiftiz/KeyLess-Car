@@ -1,10 +1,10 @@
 # KeyLess-Car for ESP32
 
-Qu'est-ce qu'un système RKS
+What is a RKS system
 
-RKS comme système sans clé à distance. C'est un système de proximité qui se déclenche si une clé se trouve à une certaine distance.
-Largement utilisé dans les véhicules modernes. Il est très pratique d'accéder à votre voiture lorsque vous disposez du système RKS.
-Vous n'avez pas besoin de retirer votre clé, il vous suffit de marcher jusqu'à votre voiture avec la clé dans votre poche, puis vous pourrez ouvrir la porte.
+RKS as the Remote keyless system. It's a proximity system that is triggered if a key is within a certain distance.
+Widely used in modern vehicles. It's very convenient to Entry your car when you have RKS system.
+You do not need take out of your key, just walk to your car with the key in your pocket, then you can open the door.
 
  ![image](https://github.com/fryefryefrye/Open-Source-RKS/raw/master/img/pke_car.jpg)
 
