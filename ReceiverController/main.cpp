@@ -3,33 +3,35 @@
 #include <BLEUtils.h>
 #include <BLEServer.h>
 #include <BLEAdvertising.h>
+#include <math.h>
 
 #include "irk.h"
 
 #define IRK_LIST_NUMBER 2
-const char * IrkListName[IRK_LIST_NUMBER] = {"Yannis","Emilie"};
+const char * IrkListName[IRK_LIST_NUMBER] = {"A","B"};
 uint8_t irk[IRK_LIST_NUMBER][ESP_BT_OCTET16_LEN]= {
-    // IRK of Yannis
+    // IRK of A
     {0xD2,0x92,0xA0,0x8F,0xF0,0x03,0x81,0x5A,0xD6,0xA2,0xE4,0xE6,0x85,0x57,0xAD,0x35},
-    // IRK of Emilie
+    // IRK of B
     {0x85,0x89,0x90,0xBE,0x9C,0xBE,0xBC,0xE7,0xFE,0xEE,0x6B,0xCE,0x5E,0x62,0xE9,0x75}
 };
+ 
 
-#define MAC_LEN 6
-#define RECV_PAYLOAD_SIZE 28
-
-BLEServer* pServer = NULL;
+BLEServer* pServerL;
 int RSSI_THRESHOLD_OPEN = -50;
-int RSSI_THRESHOLD_CLOSED = -90;
+int RSSI_THRESHOLD_CLOSED = -70;
+
 bool IphoneDetect = false;
-bool DeadZone = false;
 bool carOpen = false;
+
 
 void BleDataCheckTask() {
     BLEScan *pBLEScan = BLEDevice::getScan();
     BLEScanResults foundDevices = pBLEScan->start(3, false);  // Scan pendant 3 secondes
 
-    int deviceMatched = 0;  // Flag to indicate if the device matched any IRK
+    bool proximityOk = false;
+    bool proximityNok = false;
+    bool proximityDeadZone = false;
 
     for (int i = 0; i < foundDevices.getCount(); i++) {
         BLEAdvertisedDevice device = foundDevices.getDevice(i);
@@ -40,40 +42,42 @@ void BleDataCheckTask() {
 
         for (int j = 0; j < IRK_LIST_NUMBER; j++) {
             if (btm_ble_addr_resolvable((uint8_t *)AdMac.getNative(), irk[j])) {
-                Serial.println("........................................");
-                printf("MacAdd = %s Belongs to: %s\r\n", AdMac.toString().c_str(), IrkListName[j]);
+                //Serial.println("........................................");
+                printf("Mac = %s Belongs to: %s\r\n", AdMac.toString().c_str(), IrkListName[j]);
 
                 int rssi = device.getRSSI();
                 Serial.print("RSSI: ");
-                Serial.println(rssi);
+                Serial.print(rssi);
                 if (rssi >= RSSI_THRESHOLD_OPEN)
                 {
-                    Serial.println("Device Proximity ok");
-                    Serial.println("........................................");
-                    deviceMatched = deviceMatched + 1;
+                    Serial.println(" Device Proximity : Ok");
+                    Serial.println(" ");
+                    //Serial.println("........................................");
+                    proximityOk = true;
                 }
                 if (rssi < RSSI_THRESHOLD_OPEN && rssi > RSSI_THRESHOLD_CLOSED)
                 {
-                    Serial.println("Device Proximity dead zone");
-                    Serial.println("........................................");
-                    DeadZone = true;
+                    Serial.println(" Device Proximity :  Dead zone");
+                    Serial.println(" ");
+                    //Serial.println("........................................");
+                    proximityDeadZone = true;
                 }
                 if (rssi <= RSSI_THRESHOLD_CLOSED)
                 {
-                    Serial.println("Device Proximity nok");
-                    Serial.println("........................................");
-                    deviceMatched = deviceMatched - 1;
+                    Serial.println(" Device Proximity : Nok");
+                    Serial.println(" ");
+                    //Serial.println("........................................");
+                    proximityNok = true;
                 }
             }
         }
     }
-     if (deviceMatched >= 1) {
-        IphoneDetect = true;
+    if (proximityOk) {
+       IphoneDetect = true;
     }
-    if (deviceMatched < 1 && !DeadZone) {
+    if (proximityNok && !proximityOk && !proximityDeadZone) {
         IphoneDetect = false;
     }
-    Serial.println(IphoneDetect);
 }
 
 
@@ -91,9 +95,6 @@ void setup() {
 
     // Underclock CPU to Energize save
     setCpuFrequencyMhz(80);
-    //int cpuSpeed = getCpuFrequencyMhz();
-    //Serial.print("Frequence du CPU :");
-    //Serial.println(cpuSpeed);
 
     BLEDevice::init("Keyless Car");
     BLEServer *pServer = BLEDevice::createServer();
@@ -109,7 +110,7 @@ void setup() {
 
 void loop() {
     Serial.println("Scan.....");
-    //IphoneDetect = false; // Réinitialisez la variable avant chaque balayage
+    IphoneDetect = false; // Réinitialisez la variable avant chaque balayage
     BleDataCheckTask();
 
     if (!IphoneDetect) {
@@ -132,6 +133,6 @@ void loop() {
             delay(5000);
         }
     }
-    Serial.println("############################");
+    Serial.println("-------------------------------------");
 
 }
