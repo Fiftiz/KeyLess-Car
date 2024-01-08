@@ -8,6 +8,7 @@
 
 #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+#define PASSKEY 111111
 
 #define IRK_LIST_NUMBER 2
 const char * IrkListName[IRK_LIST_NUMBER] = {"A","B"};
@@ -31,6 +32,58 @@ bool proximityDeadZone = false;
 bool carOpen = false;
 
 bool deviceConnected = false;
+
+/////////////////////
+//BLE Secure Server//
+/////////////////////
+class SecurityCallback : public BLESecurityCallbacks {
+
+    uint32_t onPassKeyRequest() {
+      return 000000;
+    }
+
+    void onPassKeyNotify(uint32_t pass_key) {}
+
+    bool onConfirmPIN(uint32_t pass_key) {
+      vTaskDelay(5000);
+      return true;
+    }
+
+    bool onSecurityRequest() {
+      return true;
+    }
+
+    void onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) {
+      if (cmpl.success) {
+        Serial.println("   - SecurityCallback - Authentication Success");
+        digitalWrite(LED_BUILTIN, HIGH);
+      } else {
+        Serial.println("   - SecurityCallback - Authentication Failure*");
+        pServer->removePeerDevice(pServer->getConnId(), true);
+      }
+      BLEDevice::startAdvertising();
+    }
+};
+
+void bleSecurity() {
+  esp_ble_auth_req_t auth_req = ESP_LE_AUTH_REQ_SC_MITM_BOND;
+  esp_ble_io_cap_t iocap = ESP_IO_CAP_OUT;
+  uint8_t key_size = 16;
+  uint8_t init_key = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK;
+  uint8_t rsp_key = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK;
+  uint32_t passkey = PASSKEY;
+  uint8_t auth_option = ESP_BLE_ONLY_ACCEPT_SPECIFIED_AUTH_DISABLE;
+  esp_ble_gap_set_security_param(ESP_BLE_SM_SET_STATIC_PASSKEY, &passkey, sizeof(uint32_t));
+  esp_ble_gap_set_security_param(ESP_BLE_SM_AUTHEN_REQ_MODE, &auth_req, sizeof(uint8_t));
+  esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &iocap, sizeof(uint8_t));
+  esp_ble_gap_set_security_param(ESP_BLE_SM_MAX_KEY_SIZE, &key_size, sizeof(uint8_t));
+  esp_ble_gap_set_security_param(ESP_BLE_SM_ONLY_ACCEPT_SPECIFIED_SEC_AUTH, &auth_option, sizeof(uint8_t));
+  esp_ble_gap_set_security_param(ESP_BLE_SM_SET_INIT_KEY, &init_key, sizeof(uint8_t));
+  esp_ble_gap_set_security_param(ESP_BLE_SM_SET_RSP_KEY, &rsp_key, sizeof(uint8_t));
+}
+/////////////////////
+//BLE Secure Server//
+/////////////////////
 
 void BleDataCheckTask() {
     BLEScan *pBLEScan = BLEDevice::getScan();
@@ -128,6 +181,8 @@ void setup() {
     setCpuFrequencyMhz(80);
     // Initialise le BLE
     BLEDevice::init("Keyless Car");
+    BLEDevice::setEncryptionLevel(ESP_BLE_SEC_ENCRYPT);
+    BLEDevice::setSecurityCallbacks(new SecurityCallback());
     // Crée le serveur BLE
     pServer = BLEDevice::createServer();
     BLEService *pService = pServer->createService(SERVICE_UUID);
@@ -139,7 +194,8 @@ void setup() {
                                         BLECharacteristic::PROPERTY_NOTIFY |
                                         BLECharacteristic::PROPERTY_INDICATE
                     );
-
+    // Définit la Callback pour le securite
+    pCharacteristic->setAccessPermissions(ESP_GATT_PERM_READ_ENCRYPTED | ESP_GATT_PERM_WRITE_ENCRYPTED);
     // Définit la Callback pour le caractéristique
     pCharacteristic->setCallbacks(new MyCallbacks());
     // Définit la Callback pour les connections
@@ -155,6 +211,7 @@ void setup() {
     pAdvertising->setMinPreferred(0x12);
     pAdvertising->start();
 
+    bleSecurity();
     Serial.println("Bluetooth Server ok");
 }
 
