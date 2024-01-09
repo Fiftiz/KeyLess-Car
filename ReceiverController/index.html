@@ -1,0 +1,213 @@
+<!--
+  Rui Santos
+  Complete project details at https://RandomNerdTutorials.com/esp32-web-bluetooth/
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files.
+  The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+-->
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>KeyLess Car App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="">
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <link rel="stylesheet" type="text/css" href="w3.css">
+</head>
+<body>
+    <div class="topnav">
+        <h1>KeyLess Ble Car</h1>
+    </div>
+    <div class="content">
+        <div class="card-grid">
+            <div class="card">
+                <p class="gray-label">BLE state: <strong><span id="bleState" style="color:#d13a30;">Disconnected</span></strong></p>
+            </div>
+        </div>
+        <div class="card-grid">
+            <div class="card">
+                <h2>Etat Actuel</h2>
+                <p class="reading"><span id="valueSent">-</span></p>
+                <p>
+                <!-- <p class="gray-label">Last reading: <span id="timestamp"></span></p> -->
+                <hr style="width: 80%; margin: 0px 10% 20px 10%; color: rgb(44, 44, 44)"/>
+                <h2>Control</h2>
+                <button id="onButton" class="onButton">OPEN</button>
+                <button id="offButton" class="offButton">CLOSED</button>
+                <!-- <p class="gray-label">Last value sent: <span id="valueSent"></span></p> -->
+                </p>
+            </div>
+        </div>
+        <div class="card-grid">
+            <div class="card">
+                <p>
+                    <button id="connectBleButton" class="connectButton"> Connect to BLE Device</button>
+                    <button id="disconnectBleButton" class="disconnectButton"> Disconnect BLE Device</button>
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="footer">
+        <p><a href="https://yannisthiroux.com">KeyLess Car</a></p>
+    </div>
+</body>
+<script>
+    //window.addEventListener('load', document.getElementById('valueSent'));
+    // DOM Elements
+    const connectButton = document.getElementById('connectBleButton');
+    const disconnectButton = document.getElementById('disconnectBleButton');
+    const onButton = document.getElementById('onButton');
+    const offButton = document.getElementById('offButton');
+    //const retrievedValue = document.getElementById('valueContainer');
+    const latestValueSent = document.getElementById('valueSent');
+    const bleStateContainer = document.getElementById('bleState');
+    //const timestampContainer = document.getElementById('timestamp');
+
+    //Define BLE Device Specs
+    var deviceName ='KeyLess Car';
+    var bleService = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
+    var pCharacteristic = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+    //var sensorCharacteristic= '19b10001-e8f2-537e-4f6c-d104768a1214';
+
+    //Global Variables to Handle Bluetooth
+    var bleServer;
+    var bleServiceFound;
+    let intervalId; // Objet pour stocker la référence de l'intervalle
+    //var pCharacteristicFound;
+
+    // Connect Button (search for BLE Devices only if BLE is available)
+    connectButton.addEventListener('click', (event) => {
+        if (isWebBluetoothEnabled()){
+            connectToDevice();
+        }
+    });
+
+    // Disconnect Button
+    disconnectButton.addEventListener('click', disconnectDevice);
+
+    // Write to the ESP32 LED Characteristic
+    onButton.addEventListener('click', () => writeOnCharacteristic(1));
+    offButton.addEventListener('click', () => writeOnCharacteristic(0));
+
+    // Check if BLE is available in your Browser
+    function isWebBluetoothEnabled() {
+        if (!navigator.bluetooth) {
+            console.log("Web Bluetooth API is not available in this browser!");
+            bleStateContainer.innerHTML = "Web Bluetooth API is not available in this browser!";
+            return false
+        }
+        console.log('Web Bluetooth API supported in this browser.');
+        return true
+    }
+
+    // Connect to BLE Device and Enable Notifications
+    function connectToDevice(){
+        console.log('Initializing Bluetooth...');
+        navigator.bluetooth.requestDevice({
+            filters: [{name: deviceName}],
+            optionalServices: [bleService]
+        })
+        .then(device => {
+            console.log('Device Selected:', device.name);
+            bleStateContainer.innerHTML = 'Connected to ' + device.name;
+            bleStateContainer.style.color = "#24af37";
+            device.addEventListener('gattservicedisconnected', onDisconnected);
+            return device.gatt.connect();
+        })
+        .then(gattServer =>{
+            bleServer = gattServer;
+            console.log("Connected to GATT Server");
+            return bleServer.getPrimaryService(bleService);
+        })
+        .then(service => {
+            bleServiceFound = service;
+            console.log("Service discovered:", service.uuid);
+            return service.getCharacteristic(pCharacteristic);
+        })
+        .then(characteristic => {
+            console.log("Characteristic discovered:", characteristic.uuid);
+            console.log("Notifications Started.");
+            intervalId = setInterval(() => {readCharacteristicValue(characteristic);}, 3000);
+            return characteristic.readValue();
+        })
+        .then(value => {
+            console.log("Read value: ", value);
+            const decodedValue = new TextDecoder().decode(value);
+            console.log("Decoded value: ", decodedValue);
+            CharacteristicConv(decodedValue);
+        })
+        .catch(error => {
+            console.log('Error: ', error);
+        })
+    }
+
+    function onDisconnected(event){
+        console.log('Device Disconnected:', event.target.device.name);
+        bleStateContainer.innerHTML = "Device disconnected";
+        bleStateContainer.style.color = "#d13a30";
+        clearInterval(intervalId); // Arrêter l'intervalle
+
+        connectToDevice();
+    }
+
+    function readCharacteristicValue(characteristic) {
+        characteristic.readValue()
+        .then(value => {
+            const decodedValue = new TextDecoder().decode(value);
+            // Stocker la valeur dans la variable latestValueSent
+            CharacteristicConv(decodedValue);
+            console.log('Dernière valeur lue:', decodedValue);
+        })
+        .catch(error => {
+            console.error('Erreur lors de la lecture de la caractéristique:', error);
+        });
+}
+
+    function writeOnCharacteristic(value){
+        if (bleServer && bleServer.connected) {
+            bleServiceFound.getCharacteristic(pCharacteristic)
+            .then(characteristic => {
+                console.log("Found the  pcharacteristic: ", characteristic.uuid);
+                const data = new Uint8Array([value]);
+                return characteristic.writeValue(data);
+            })
+            .then(() => {
+                CharacteristicConv(value);
+                console.log("Value written to pcharacteristic:", value);
+            })
+            .catch(error => {
+                console.error("Error writing to the pcharacteristic: ", error);
+            });
+        } else {
+            console.error ("Bluetooth is not connected. Cannot write to characteristic.")
+            window.alert("Bluetooth is not connected. Cannot write to characteristic. \n Connect to BLE first!")
+        }
+    }
+
+    function disconnectDevice() {
+        console.log("Disconnect Device.");
+        if (bleServer && bleServer.connected) {
+            bleServer.disconnect();
+            clearInterval(intervalId); // Arrêter l'intervalle
+            bleStateContainer.innerHTML = "Device Disconnected";
+            bleStateContainer.style.color = "#d13a30";
+        } else {
+            // Throw an error if Bluetooth is not connected
+            console.error("Bluetooth is not connected.");
+            window.alert("Bluetooth is not connected.")
+        }
+    }
+
+    function CharacteristicConv(value){
+        if (value == 1){
+            latestValueSent.innerHTML = "Open";
+        }
+        if (value == 0){
+            latestValueSent.innerHTML = "Closed";
+        }
+    }
+
+</script>
+
+</html>
