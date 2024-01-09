@@ -22,23 +22,29 @@
     <div class="content">
         <div class="card-grid">
             <div class="card">
-                <p>
-                    <button id="connectBleButton" class="connectButton"> Connect to BLE Device</button>
-                    <button id="disconnectBleButton" class="disconnectButton"> Disconnect BLE Device</button>
-                </p>
                 <p class="gray-label">BLE state: <strong><span id="bleState" style="color:#d13a30;">Disconnected</span></strong></p>
             </div>
         </div>
         <div class="card-grid">
             <div class="card">
                 <h2>Etat Actuel</h2>
-                <p class="reading"><span id="valueSent">NaN</span></p>
+                <p class="reading"><span id="valueSent">-</span></p>
+                <p>
                 <!-- <p class="gray-label">Last reading: <span id="timestamp"></span></p> -->
                 <hr style="width: 80%; margin: 0px 10% 20px 10%; color: rgb(44, 44, 44)"/>
                 <h2>Control</h2>
                 <button id="onButton" class="onButton">OPEN</button>
                 <button id="offButton" class="offButton">CLOSED</button>
                 <!-- <p class="gray-label">Last value sent: <span id="valueSent"></span></p> -->
+                </p>
+            </div>
+        </div>
+        <div class="card-grid">
+            <div class="card">
+                <p>
+                    <button id="connectBleButton" class="connectButton"> Connect to BLE Device</button>
+                    <button id="disconnectBleButton" class="disconnectButton"> Disconnect BLE Device</button>
+                </p>
             </div>
         </div>
     </div>
@@ -47,7 +53,7 @@
     </div>
 </body>
 <script>
-    //window.addEventListener('load', connectToDevice());
+    //window.addEventListener('load', document.getElementById('valueSent'));
     // DOM Elements
     const connectButton = document.getElementById('connectBleButton');
     const disconnectButton = document.getElementById('disconnectBleButton');
@@ -103,7 +109,7 @@
         })
         .then(device => {
             console.log('Device Selected:', device.name);
-            bleStateContainer.innerHTML = 'Connected to device ' + device.name;
+            bleStateContainer.innerHTML = 'Connected to ' + device.name;
             bleStateContainer.style.color = "#24af37";
             device.addEventListener('gattservicedisconnected', onDisconnected);
             return device.gatt.connect();
@@ -120,17 +126,17 @@
         })
         /*.then(characteristic => {
             console.log("Characteristic discovered:", characteristic.uuid);
-            //sensorCharacteristicFound = characteristic;
-            //characteristic.addEventListener('characteristicvaluechanged', handleCharacteristicChange);
-            //characteristic.startNotifications();
+            pCharacteristicFound = characteristic;
+            characteristic.addEventListener('characteristicvaluechanged', handleCharacteristicChange);
+            characteristic.startNotifications();
             console.log("Notifications Started.");
             return characteristic.readValue();
         })*/
         /*.then(value => {
             console.log("Read value: ", value);
             const decodedValue = new TextDecoder().decode(value);
-            //console.log("Decoded value: ", decodedValue);
-            //retrievedValue.innerHTML = decodedValue;
+            console.log("Decoded value: ", decodedValue);
+            retrievedValue.innerHTML = decodedValue;
         })*/
         .catch(error => {
             console.log('Error: ', error);
@@ -145,12 +151,12 @@
         connectToDevice();
     }
 
-    /*function handleCharacteristicChange(event){
+    function handleCharacteristicChange(event){
         const newValueReceived = new TextDecoder().decode(event.target.value);
         console.log("Characteristic value changed: ", newValueReceived);
-        //retrievedValue.innerHTML = newValueReceived;
+        latestValueSent.innerHTML = newValueReceived;
         //timestampContainer.innerHTML = getDateTime();
-    }*/
+    }
 
     function writeOnCharacteristic(value){
         if (bleServer && bleServer.connected) {
@@ -161,7 +167,12 @@
                 return characteristic.writeValue(data);
             })
             .then(() => {
-                latestValueSent.innerHTML = value;
+                if (value == 1){
+                latestValueSent.innerHTML = "Open";
+                }
+                if (value == 0){
+                latestValueSent.innerHTML = "Closed";
+                }
                 console.log("Value written to pcharacteristic:", value);
             })
             .catch(error => {
