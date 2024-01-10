@@ -4,7 +4,7 @@ html {
     margin: 5px 0;
 }
 h1 {
-    font-size: 36px;
+    font-size: 25px;
     color: white;
     font-weight: 400;
 }
@@ -74,9 +74,8 @@ button {
   }
   
 .statusButton {
-    height: calc(100% - 120px); /* Taille égale à la hauteur de l'écran moins la hauteur du pied de page */
-    width: 250px;
-    height: 250px;
+    width: 200px;
+    height: 200px;
     border-radius: 50%;
     border: 5px solid #525252;
     background-color: black;

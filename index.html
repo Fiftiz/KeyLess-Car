@@ -31,6 +31,10 @@
     // DOM Elements
     const connectButton = document.getElementById('connectBleButton');
     const disconnectButton = document.getElementById('disconnectBleButton');
+    //const onButton = document.getElementById('onButton');
+    //const offButton = document.getElementById('offButton');
+    //const retrievedValue = document.getElementById('valueContainer');
+    //const latestValueSent = document.getElementById('valueSent');
     const bleStateContainer = document.getElementById('bleState');
 
     //Define BLE Device Specs
@@ -54,6 +58,10 @@
 
     // Disconnect Button
     disconnectButton.addEventListener('click', disconnectDevice);
+
+    // Write to the ESP32 Characteristic
+    //onButton.addEventListener('click', () => writeOnCharacteristic(1));
+    //offButton.addEventListener('click', () => writeOnCharacteristic(0));
 
     // Check if BLE is available in your Browser
     function isWebBluetoothEnabled() {
@@ -79,8 +87,6 @@
 
         .then(device => {
             console.log('Device Selected:', device.name);
-            bleStateContainer.innerHTML = 'Connected to Car';
-            bleStateContainer.style.color = "#ffA500";
             device.addEventListener('gattservicedisconnected', onDisconnected);
             return device.gatt.connect();
         })
@@ -97,10 +103,12 @@
         .then(characteristic => {
             console.log("Characteristic discovered:", characteristic.uuid);
             console.log("Notifications Started.");
-            intervalIdObj.id = setInterval(() => {readCharacteristicValue(characteristic);}, 5000);
+            intervalIdObj.id = setInterval(() => {readCharacteristicValue(characteristic);}, 3000);
             return characteristic.readValue();
         })
         .then(value => {
+            bleStateContainer.innerHTML = 'Connected to Car';
+            bleStateContainer.style.color = "#ffA500";
             console.log("Read value: ", value);
             const decodedValue = new TextDecoder().decode(value);
             console.log("Decoded value: ", decodedValue);
@@ -111,6 +119,7 @@
         })
         .catch(error => {
             console.log('Error: ', error);
+            clearInterval(intervalIdObj.id); // Arrêter l'intervalle
         })
     }
 
@@ -121,7 +130,6 @@
         clearInterval(intervalIdObj.id); // Arrêter l'intervalle
         var button = document.querySelector('.statusButton');
         button.classList.remove('statusButton-connected');
-
         connectToDevice();
     }
 
