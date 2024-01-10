@@ -17,52 +17,38 @@
 </head>
 <body>
     <div class="topnav">
-        <h1>KeyLess Ble Car</h1>
+        <h1>KEYLESS CAR</h1>
     </div>
     <div class="content">
         <div class="card-grid">
             <div class="card">
-                <p class="gray-label">BLE state: <strong><span id="bleState" style="color:#d13a30;">Disconnected</span></strong></p>
-            </div>
-        </div>
-        <div class="card-grid">
-            <div class="card">
-                <h2>Etat Actuel</h2>
-                <p class="reading"><span id="valueSent">-</span></p>
-                <p>
-                <!-- <p class="gray-label">Last reading: <span id="timestamp"></span></p> -->
-                <hr style="width: 80%; margin: 0px 10% 20px 10%; color: rgb(44, 44, 44)"/>
-                <h2>Control</h2>
-                <button id="onButton" class="onButton">OPEN</button>
-                <button id="offButton" class="offButton">CLOSED</button>
-                <!-- <p class="gray-label">Last value sent: <span id="valueSent"></span></p> -->
-                </p>
-            </div>
-        </div>
-        <div class="card-grid">
-            <div class="card">
-                <p>
-                    <button id="connectBleButton" class="connectButton"> Connect to BLE Device</button>
-                    <button id="disconnectBleButton" class="disconnectButton"> Disconnect BLE Device</button>
-                </p>
+                <div class="button-container">
+                    <button id="statusButton" onclick="toggleStatus()">-</button>
+                </div>
             </div>
         </div>
     </div>
-    <div class="footer">
+            <div class="footer">
+                <p class="gray-label">State: <strong><span id="bleState" style="color:#d13a30;">Disconnected</span></strong></p>
+                <p>
+                    <button id="connectBleButton" class="connectButton"> Connect to Car</button>
+                    <button id="disconnectBleButton" class="disconnectButton"> Disconnect Car</button>
+                </p>
+            </div>
+    <!--<div class="footer">
         <p><a href="https://yannisthiroux.com">KeyLess Car</a></p>
-    </div>
+    </div> -->
 </body>
 <script>
     //window.addEventListener('load', document.getElementById('valueSent'));
     // DOM Elements
     const connectButton = document.getElementById('connectBleButton');
     const disconnectButton = document.getElementById('disconnectBleButton');
-    const onButton = document.getElementById('onButton');
-    const offButton = document.getElementById('offButton');
+    //const onButton = document.getElementById('onButton');
+    //const offButton = document.getElementById('offButton');
     //const retrievedValue = document.getElementById('valueContainer');
-    const latestValueSent = document.getElementById('valueSent');
+    //const latestValueSent = document.getElementById('valueSent');
     const bleStateContainer = document.getElementById('bleState');
-    //const timestampContainer = document.getElementById('timestamp');
 
     //Define BLE Device Specs
     var deviceName ='KeyLess Car';
@@ -73,7 +59,7 @@
     //Global Variables to Handle Bluetooth
     var bleServer;
     var bleServiceFound;
-    let intervalId; // Objet pour stocker la référence de l'intervalle
+    let intervalIdObj = { id: null }; // Objet pour stocker la référence de l'intervalle
     //var pCharacteristicFound;
 
     // Connect Button (search for BLE Devices only if BLE is available)
@@ -86,9 +72,9 @@
     // Disconnect Button
     disconnectButton.addEventListener('click', disconnectDevice);
 
-    // Write to the ESP32 LED Characteristic
-    onButton.addEventListener('click', () => writeOnCharacteristic(1));
-    offButton.addEventListener('click', () => writeOnCharacteristic(0));
+    // Write to the ESP32 Characteristic
+    //onButton.addEventListener('click', () => writeOnCharacteristic(1));
+    //offButton.addEventListener('click', () => writeOnCharacteristic(0));
 
     // Check if BLE is available in your Browser
     function isWebBluetoothEnabled() {
@@ -110,8 +96,8 @@
         })
         .then(device => {
             console.log('Device Selected:', device.name);
-            bleStateContainer.innerHTML = 'Connected to ' + device.name;
-            bleStateContainer.style.color = "#24af37";
+            bleStateContainer.innerHTML = 'Connected to Car';
+            bleStateContainer.style.color = "#ffA500";
             device.addEventListener('gattservicedisconnected', onDisconnected);
             return device.gatt.connect();
         })
@@ -128,7 +114,7 @@
         .then(characteristic => {
             console.log("Characteristic discovered:", characteristic.uuid);
             console.log("Notifications Started.");
-            intervalId = setInterval(() => {readCharacteristicValue(characteristic);}, 3000);
+            intervalIdObj.id = setInterval(() => {readCharacteristicValue(characteristic);}, 5000);
             return characteristic.readValue();
         })
         .then(value => {
@@ -146,7 +132,7 @@
         console.log('Device Disconnected:', event.target.device.name);
         bleStateContainer.innerHTML = "Device disconnected";
         bleStateContainer.style.color = "#d13a30";
-        clearInterval(intervalId); // Arrêter l'intervalle
+        clearInterval(intervalIdObj.id); // Arrêter l'intervalle
 
         connectToDevice();
     }
@@ -155,14 +141,14 @@
         characteristic.readValue()
         .then(value => {
             const decodedValue = new TextDecoder().decode(value);
-            // Stocker la valeur dans la variable latestValueSent
+            // Stocker la valeur dans la fonction CharacteristicConv
             CharacteristicConv(decodedValue);
             console.log('Dernière valeur lue:', decodedValue);
         })
         .catch(error => {
             console.error('Erreur lors de la lecture de la caractéristique:', error);
         });
-}
+    }
 
     function writeOnCharacteristic(value){
         if (bleServer && bleServer.connected) {
@@ -173,7 +159,7 @@
                 return characteristic.writeValue(data);
             })
             .then(() => {
-                CharacteristicConv(value);
+                //CharacteristicConv(value);
                 console.log("Value written to pcharacteristic:", value);
             })
             .catch(error => {
@@ -189,7 +175,7 @@
         console.log("Disconnect Device.");
         if (bleServer && bleServer.connected) {
             bleServer.disconnect();
-            clearInterval(intervalId); // Arrêter l'intervalle
+            clearInterval(intervalIdObj.id); // Arrêter l'intervalle
             bleStateContainer.innerHTML = "Device Disconnected";
             bleStateContainer.style.color = "#d13a30";
         } else {
@@ -200,13 +186,32 @@
     }
 
     function CharacteristicConv(value){
+        const statusButton = document.getElementById('statusButton');
         if (value == 1){
-            latestValueSent.innerHTML = "Open";
+            statusButton.textContent = 'UNLOCK';
+            isOpen = true;
         }
         if (value == 0){
-            latestValueSent.innerHTML = "Closed";
+            statusButton.textContent = 'LOCK';
+            isOpen = false;
         }
     }
+
+    let isOpen = false;
+
+    function toggleStatus() {
+        isOpen = !isOpen;
+
+        const statusButton = document.getElementById('statusButton');
+
+        if (isOpen) {
+            statusButton.textContent = 'Unlocking...';
+            writeOnCharacteristic(1);
+        } else {
+            statusButton.textContent = 'Locking...';
+            writeOnCharacteristic(0);
+    }
+}
 
 </script>
 

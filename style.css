@@ -9,13 +9,15 @@ h1 {
 }
 .topnav {
     overflow: hidden;
-    background-color: #0A1128;
 }
 body {
     margin: 0;
+    background-color: black;
 }
 .content {
     padding: 50px;
+    display: flex;
+  justify-content: center;
 }
 .card-grid {
     max-width: 800px;
@@ -23,11 +25,11 @@ body {
     margin-bottom: 30px;
     display: grid;
     grid-gap: 2rem;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(300, 1fr));
 }
 .card {
-    background-color: white;
-    box-shadow: 2px 2px 12px 1px rgba(140,140,140,.5);
+    background-color: 1F1F1F;
+    color: white;
 }
 button {
     color: white;
@@ -35,7 +37,7 @@ button {
     margin: 8px 0;
     border: none;
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: 8px;
 }
 
 .onButton{
@@ -47,11 +49,11 @@ button {
 }
 
 .connectButton{
-    background-color: #24af37;
+    background-color: #ffA500;
 }
 
 .disconnectButton{
-    background-color: #d13a30;
+    background-color: #525252;
 }
 
 .gray-label { 
@@ -62,3 +64,34 @@ button {
 .reading { 
     font-size: 1.8rem;
 }
+
+.footer {
+    position:absolute;
+    bottom:0;  /* on le colle en bas */
+    width:100%;
+    height:120px;   /* Hauteur du pied de page */
+    left: 0;
+    right: 0;
+    background-color: #1F1F1F;;
+}
+
+.button-container {
+    position: relative;
+    margin : auto;
+    align-items: center;
+  }
+  
+  #statusButton {
+    width: 300px;
+    height: 300px;
+    border-radius: 50%;
+    border: 5px solid #ffA500;
+    background-color: black;
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+  }
+  
+  #statusButton:hover {
+    background-color: #ff8c00; /* Couleur orange foncée au survol */
+  }
