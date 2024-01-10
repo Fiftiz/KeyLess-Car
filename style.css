@@ -1,7 +1,7 @@
 html {
     display: inline-block;
     font-family: "Segoe UI",Arial,sans-serif;
-    margin: 10px 0;
+    margin: 5px 0;
 }
 h1 {
     font-size: 36px;
@@ -52,7 +52,7 @@ button {
     height:120px;   /* Hauteur du pied de page */
     left: 0;
     right: 0;
-    background-color: #1F1F1F;;
+    background-color: #1F1F1F;
 }
 
 @keyframes blink {

@@ -31,10 +31,6 @@
     // DOM Elements
     const connectButton = document.getElementById('connectBleButton');
     const disconnectButton = document.getElementById('disconnectBleButton');
-    //const onButton = document.getElementById('onButton');
-    //const offButton = document.getElementById('offButton');
-    //const retrievedValue = document.getElementById('valueContainer');
-    //const latestValueSent = document.getElementById('valueSent');
     const bleStateContainer = document.getElementById('bleState');
 
     //Define BLE Device Specs
@@ -58,10 +54,6 @@
 
     // Disconnect Button
     disconnectButton.addEventListener('click', disconnectDevice);
-
-    // Write to the ESP32 Characteristic
-    //onButton.addEventListener('click', () => writeOnCharacteristic(1));
-    //offButton.addEventListener('click', () => writeOnCharacteristic(0));
 
     // Check if BLE is available in your Browser
     function isWebBluetoothEnabled() {
