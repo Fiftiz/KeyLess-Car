@@ -2,6 +2,7 @@
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEServer.h>
+#include <BLE2902.h>
 #include <BLEAdvertising.h>
 
 #include "irk.h"
@@ -19,19 +20,34 @@ uint8_t irk[IRK_LIST_NUMBER][ESP_BT_OCTET16_LEN]= {
     {0x85,0x89,0x90,0xBE,0x9C,0xBE,0xBC,0xE7,0xFE,0xEE,0x6B,0xCE,0x5E,0x62,0xE9,0x75}
 };
 
-
+const int relayUnlock = 26;
+const int relayLock = 27;
 // Service et caractéristique Bluetooth personnalisés
 BLEServer* pServer = NULL;
 BLECharacteristic* pCharacteristic = NULL;
-
-int RSSI_THRESHOLD_OPEN = -50;
-int RSSI_THRESHOLD_CLOSED = -70;
-
+// Range to RSSI
+int RSSI_THRESHOLD_OPEN = -70;
+int RSSI_THRESHOLD_CLOSED = -90;
+//Different Var and bool
 bool IphoneDetect = false;
 bool proximityDeadZone = false;
 bool carOpen = false;
-
 bool deviceConnected = false;
+
+
+void UnLockRelay() {
+  digitalWrite(relayUnlock, LOW);
+  delay(2000);
+  digitalWrite(relayUnlock, HIGH);
+};
+
+void LockRelay() {
+  digitalWrite(relayLock, LOW);
+  delay(2000);
+  digitalWrite(relayLock, HIGH);
+};
+void UnLockRelay();
+void LockRelay();
 
 /////////////////////
 //BLE Secure Server//
@@ -55,10 +71,10 @@ class SecurityCallback : public BLESecurityCallbacks {
 
     void onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) {
       if (cmpl.success) {
-        Serial.println("   - SecurityCallback - Authentication Success");
+        Serial.println("Authentication Success");
         digitalWrite(LED_BUILTIN, HIGH);
       } else {
-        Serial.println("   - SecurityCallback - Authentication Failure*");
+        Serial.println("Authentication Failure*");
         pServer->removePeerDevice(pServer->getConnId(), true);
       }
       BLEDevice::startAdvertising();
@@ -85,9 +101,14 @@ void bleSecurity() {
 //BLE Secure Server//
 /////////////////////
 
+
+
+////////////////////////////
+//DETECT RANDOM MAC IPHONE//
+////////////////////////////
 void BleDataCheckTask() {
     BLEScan *pBLEScan = BLEDevice::getScan();
-    BLEScanResults foundDevices = pBLEScan->start(3, false);  // Scan pendant 3 secondes
+    BLEScanResults foundDevices = pBLEScan->start(2, false);  // Scan pendant 3 secondes
 
     bool proximityOk = false;
     bool proximityNok = false;
@@ -102,30 +123,24 @@ void BleDataCheckTask() {
         for (int j = 0; j < IRK_LIST_NUMBER; j++) {
             if (btm_ble_addr_resolvable((uint8_t *)AdMac.getNative(), irk[j])) {
                 //Serial.println("........................................");
-                printf("Mac = %s Belongs to: %s\r\n", AdMac.toString().c_str(), IrkListName[j]);
-
+                //printf("Mac = %s Belongs to: %s\r\n", AdMac.toString().c_str(), IrkListName[j]);
+                Serial.println((String)IrkListName[j] + " is detected");
                 int rssi = device.getRSSI();
                 Serial.print("RSSI: ");
                 Serial.print(rssi);
                 if (rssi >= RSSI_THRESHOLD_OPEN)
                 {
                     Serial.println(" Device Proximity : Ok");
-                    Serial.println(" ");
-                    //Serial.println("........................................");
                     proximityOk = true;
                 }
                 if (rssi < RSSI_THRESHOLD_OPEN && rssi > RSSI_THRESHOLD_CLOSED)
                 {
                     Serial.println(" Device Proximity :  Dead zone");
-                    Serial.println(" ");
-                    //Serial.println("........................................");
                     proximityDeadZone = true;
                 }
                 if (rssi <= RSSI_THRESHOLD_CLOSED)
                 {
                     Serial.println(" Device Proximity : Nok");
-                    Serial.println(" ");
-                    //Serial.println("........................................");
                     proximityNok = true;
                 }
             }
@@ -139,53 +154,91 @@ void BleDataCheckTask() {
     }
 }
 
+////////////////////////////
+//DETECT RANDOM MAC IPHONE//
+////////////////////////////
 
-class MyCallbacks: public BLECharacteristicCallbacks
+
+////////////////////
+//BLUETOOTH SERVER//
+////////////////////
+
+class MyServerCallbacks: public BLEServerCallbacks {
+  void onConnect(BLEServer* pServer) {
+  deviceConnected = true;
+  Serial.println("////////////////");
+  Serial.println("device connected");
+  Serial.println("////////////////");
+  };
+
+  void onDisconnect(BLEServer* pServer) {
+  deviceConnected = false;
+  Serial.println("///////////////////");
+  Serial.println("device disconnected");
+  Serial.println("///////////////////");
+  pServer->getAdvertising()->start();
+  }
+};
+
+
+class MyCharacteristicCallbacks: public BLECharacteristicCallbacks
 {
   void onWrite(BLECharacteristic *pCharacteristic)
   {
     std::string value = pCharacteristic->getValue();
 
     if (value.length() == 1) {
-      if (value[0] == '1') {
+      int receivedValue = static_cast<int>(value[0]);
+      if (receivedValue == 1) {
         //isOpen = true;
-        pCharacteristic->setValue("Open");
+        pCharacteristic->setValue("1");
+        carOpen = true;
+        UnLockRelay();
+        Serial.println("----");
         Serial.println("Open");
-      } else if (value[0] == '0') {
+        Serial.println("----");
+      } else if (receivedValue == 0) {
         //isOpen = false;
-        pCharacteristic->setValue("Closed");
+        pCharacteristic->setValue("0");
+        carOpen = false;
+        LockRelay();
+        Serial.println("------");
         Serial.println("Closed");
+        Serial.println("------");
       }
     pCharacteristic->notify();
     }
   }
 };
 
-class MyServerCallbacks: public BLEServerCallbacks {
-  void onConnect(BLEServer* pServer) {
-  deviceConnected = true;
-  Serial.println("device connected");
-  };
+////////////////////
+//BLUETOOTH SERVER//
+////////////////////
 
-  void onDisconnect(BLEServer* pServer) {
-  deviceConnected = false;
-  Serial.println("device disconnected");
-  pServer->getAdvertising()->start();
-  }
-};
 
 void setup() {
     Serial.begin(115200);
+    //Declare pinMode
+    pinMode(relayLock, OUTPUT);
+    pinMode(relayUnlock, OUTPUT);
+    digitalWrite(relayLock, HIGH);
+    digitalWrite(relayUnlock, HIGH);
+
 
     // Underclock CPU to Energize save
     setCpuFrequencyMhz(80);
     // Initialise le BLE
-    BLEDevice::init("Keyless Car");
+    BLEDevice::init("KeyLess Car");
     BLEDevice::setEncryptionLevel(ESP_BLE_SEC_ENCRYPT);
     BLEDevice::setSecurityCallbacks(new SecurityCallback());
     // Crée le serveur BLE
     pServer = BLEDevice::createServer();
+     // Définit la Callback pour les connections
+    pServer->setCallbacks(new MyServerCallbacks());
+     // Create the BLE Service
     BLEService *pService = pServer->createService(SERVICE_UUID);
+
+    
     // Crée le caractéristique BLE
     pCharacteristic = pService->createCharacteristic(
                                         CHARACTERISTIC_UUID,
@@ -197,11 +250,11 @@ void setup() {
     // Définit la Callback pour le securite
     pCharacteristic->setAccessPermissions(ESP_GATT_PERM_READ_ENCRYPTED | ESP_GATT_PERM_WRITE_ENCRYPTED);
     // Définit la Callback pour le caractéristique
-    pCharacteristic->setCallbacks(new MyCallbacks());
-    // Définit la Callback pour les connections
-    pServer->setCallbacks(new MyServerCallbacks());
+    pCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
     // Définit la valeur initiale du caractéristique
-    pCharacteristic->setValue("Closed");
+    pCharacteristic->setValue("0");
+     // Create a BLE Descriptor
+    pCharacteristic->addDescriptor(new BLE2902());
     // Démarre le service BLE
     pService->start();
     // Commence à diffuser le service BLE
@@ -217,16 +270,21 @@ void setup() {
 
 void loop() {
     Serial.println("Scan.....");
+    Serial.println(" ");
     IphoneDetect = false; // Réinitialisez la variable avant chaque balayage
     proximityDeadZone = false;
     BleDataCheckTask();
-
+    Serial.println(" ");
+    Serial.println("-------------------------------------");
     if (!IphoneDetect) {
         if (!carOpen) {
             Serial.println("Waiting to Detect Iphone");
         }
         if (carOpen && !proximityDeadZone) {
             Serial.println("No iphone Detected, Closing the car");
+            pCharacteristic->setValue("0");
+            pCharacteristic->notify();
+            LockRelay();
             carOpen = false;
             delay(5000);
         }
@@ -237,6 +295,9 @@ void loop() {
         }
         if (!carOpen){
             Serial.println("iPhone(s) detected, opening the car");
+            pCharacteristic->setValue("1");
+            pCharacteristic->notify();
+            UnLockRelay();
             carOpen = true;
             delay(5000);
         }
