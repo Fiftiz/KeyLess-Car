@@ -1,35 +1,26 @@
 html {
-    font-family: Arial, Helvetica, sans-serif;
     display: inline-block;
-    text-align: center;
+    font-family: "Segoe UI",Arial,sans-serif;
+    margin: 10px 0;
 }
 h1 {
-    font-size: 1.8rem;
+    font-size: 36px;
     color: white;
+    font-weight: 400;
 }
 .topnav {
     overflow: hidden;
+    text-align: center;
 }
 body {
     margin: 0;
     background-color: black;
+    height: 100%;
 }
 .content {
     padding: 50px;
-    display: flex;
-  justify-content: center;
-}
-.card-grid {
-    max-width: 800px;
-    margin: 0 auto;
-    margin-bottom: 30px;
-    display: grid;
-    grid-gap: 2rem;
-    grid-template-columns: repeat(auto-fit, minmax(300, 1fr));
-}
-.card {
-    background-color: 1F1F1F;
-    color: white;
+    height: 100%;
+    text-align: center;
 }
 button {
     color: white;
@@ -38,14 +29,6 @@ button {
     border: none;
     cursor: pointer;
     border-radius: 8px;
-}
-
-.onButton{
-    background-color: #1b8a94;
-}
-
-.offButton{
-    background-color: #5f6c6d;
 }
 
 .connectButton{
@@ -61,12 +44,9 @@ button {
     font-size: 1rem; 
 }
 
-.reading { 
-    font-size: 1.8rem;
-}
-
 .footer {
     position:absolute;
+    text-align: center;
     bottom:0;  /* on le colle en bas */
     width:100%;
     height:120px;   /* Hauteur du pied de page */
@@ -75,23 +55,35 @@ button {
     background-color: #1F1F1F;;
 }
 
+@keyframes blink {
+    0%, 50%, 100% {
+        opacity: 1;
+    }
+    25%, 75% {
+        opacity: 0.25;
+    }
+}
+.blink-animation {
+    animation: blink 2.5s infinite;
+}
+
 .button-container {
     position: relative;
     margin : auto;
     align-items: center;
   }
   
-  #statusButton {
-    width: 300px;
-    height: 300px;
+.statusButton {
+    height: calc(100% - 120px); /* Taille égale à la hauteur de l'écran moins la hauteur du pied de page */
+    width: 250px;
+    height: 250px;
     border-radius: 50%;
-    border: 5px solid #ffA500;
+    border: 5px solid #525252;
     background-color: black;
     color: #fff;
     font-size: 16px;
     cursor: pointer;
   }
-  
-  #statusButton:hover {
-    background-color: #ff8c00; /* Couleur orange foncée au survol */
-  }
+  .statusButton-connected {
+    border-color: #ffA500; /* Couleur de la bordure pour la connexion réussie */
+}
