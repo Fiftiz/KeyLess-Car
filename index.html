@@ -38,6 +38,7 @@
     const disconnectButton = document.getElementById('disconnectBleButton');
     const checkboxAuto = document.getElementById('checkboxAuto');
     const bleStateContainer = document.getElementById('bleState');
+    const statusButton = document.getElementById('statusButton');
 
     //Define BLE Device Specs
     var deviceName ='KeyLess Car';
@@ -103,22 +104,32 @@
         .then(service => {
             bleServiceFound = service;
             console.log("Service discovered:", service.uuid);
-            return service.getCharacteristic(pCharacteristic);
+            return Promise.all([
+            service.getCharacteristic(pCharacteristic),
+            service.getCharacteristic(autoCharacteristic)
+            ]);
         })
-        .then(characteristic => {
-            console.log("Characteristic discovered:", characteristic.uuid);
-            characteristic.addEventListener('characteristicvaluechanged', handleCharacteristicChange);
-            characteristic.startNotifications();
+        .then(characteristics => {
+            [pCharacteristics, autoCharacteristics] = characteristics;
+            
+            
+            pCharacteristics.addEventListener('characteristicvaluechanged', handleCharacteristicChange);
+            pCharacteristics.startNotifications();
+            console.log("Characteristic discovered:", pCharacteristics.uuid);
+
+            autoCharacteristics.addEventListener('characteristicvaluechanged', handleCharacteristicChangeAuto);
+            autoCharacteristics.startNotifications();
+            console.log("Characteristic discovered:", autoCharacteristics.uuid);
+
             console.log("Notifications Started.");
-            return characteristic.readValue();
+            return Promise.all([
+                pCharacteristics.readValue(),
+                autoCharacteristics.readValue()
+            ]);
         })
         .then(value => {
             bleStateContainer.innerHTML = 'Connected to Car';
             bleStateContainer.style.color = "#ffA500";
-            //console.log("Read value: ", value);
-            //const decodedValue = new TextDecoder().decode(value);
-            //console.log("Decoded value: ", decodedValue);
-            //CharacteristicConv(decodedValue);
             var button = document.querySelector('.statusButton');
             button.classList.add('statusButton-connected');
         })
@@ -141,21 +152,26 @@
     function handleCharacteristicChange(event){
         const newValueReceived = new TextDecoder().decode(event.target.value);
         console.log("Characteristic value changed: ", newValueReceived);
-        CharacteristicConv(newValueReceived);
+        if (newValueReceived == 1){
+            statusButton.textContent = 'UNLOCK';
+            isOpen = true;
+        }
+        if (newValueReceived == 0){
+            statusButton.textContent = 'LOCK';
+            isOpen = false;
+        }
     }
 
-    /*function readCharacteristicValue(characteristic) {
-        characteristic.readValue()
-        .then(value => {
-            const decodedValue = new TextDecoder().decode(value);
-            // Stocker la valeur dans la fonction CharacteristicConv
-            CharacteristicConv(decodedValue);
-            console.log('Dernière valeur lue:', decodedValue);
-        })
-        .catch(error => {
-            console.error('Erreur lors de la lecture de la caractéristique:', error);
-        });
-    }*/
+    function handleCharacteristicChangeAuto(event){
+        const newValueReceivedAuto = new TextDecoder().decode(event.target.value);
+        console.log("Characteristic value changed: ", newValueReceivedAuto);
+        if (newValueReceivedAuto == 1){
+            checkboxAuto.checked = true;
+        }
+        if (newValueReceivedAuto == 0){
+            checkboxAuto.checked = false;
+        }
+    }
 
     function writeOnCharacteristic(value){
         if (bleServer && bleServer.connected) {
@@ -214,7 +230,7 @@
         }
     }
 
-    function CharacteristicConv(value){
+    /*function CharacteristicConv(value){
         const statusButton = document.getElementById('statusButton');
         if (value == 1){
             statusButton.textContent = 'UNLOCK';
@@ -225,6 +241,15 @@
             isOpen = false;
         }
     }
+
+    function CharacteristicConvAuto(value){
+        if (value == 1){
+            checkboxAuto.checked = true;
+        }
+        if (value == 0){
+            checkboxAuto.checked = false;
+        }
+    }*/
 
     function toggleStatus() {
         isOpen = !isOpen;
