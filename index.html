@@ -6,22 +6,27 @@
     <link rel="icon" type="image/png" href="">
     <link rel="stylesheet" type="text/css" href="style.css">
 </head>
-<body>
+<body class="w3-animate-opacity">
     <div class="topnav">
         <h1>KEYLESS CAR</h1>
     </div>
     <div class="content">
-
-                    <button id="statusButton" class="statusButton" onclick="toggleStatus()">-</button>
-
+        <p style="color: white;">Auto Lock/Unlock</p>
+        <label class="switch" for="checkboxAuto">
+            <input type="checkbox" id="checkboxAuto" />
+            <div class="slider round"></div>
+        </label>
     </div>
-            <div class="footer">
-                <p class="gray-label">State: <strong><span id="bleState" style="color:#d13a30;">Disconnected</span></strong></p>
-                <p>
-                    <button id="connectBleButton" class="connectButton"> Connect to Car</button>
-                    <button id="disconnectBleButton" class="disconnectButton"> Disconnect Car</button>
-                </p>
-            </div>
+    <div class="content">
+        <button id="statusButton" class="statusButton" onclick="toggleStatus()">-</button>
+    </div>
+    <div class="footer">
+        <p><strong><span id="bleState" style="color:#bebebe;">Disconnected</span></strong></p>
+        <p>
+            <button id="connectBleButton" class="connectButton">  Connect  </button>
+            <button id="disconnectBleButton" class="disconnectButton">Disconnect</button>
+        </p>
+    </div>
     <!--<div class="footer">
         <p><a href="https://yannisthiroux.com">KeyLess Car</a></p>
     </div> -->
@@ -31,24 +36,22 @@
     // DOM Elements
     const connectButton = document.getElementById('connectBleButton');
     const disconnectButton = document.getElementById('disconnectBleButton');
-    //const onButton = document.getElementById('onButton');
-    //const offButton = document.getElementById('offButton');
-    //const retrievedValue = document.getElementById('valueContainer');
-    //const latestValueSent = document.getElementById('valueSent');
+    const checkboxAuto = document.getElementById('checkboxAuto');
     const bleStateContainer = document.getElementById('bleState');
 
     //Define BLE Device Specs
     var deviceName ='KeyLess Car';
     var bleService = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
     var pCharacteristic = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
-    //var sensorCharacteristic= '19b10001-e8f2-537e-4f6c-d104768a1214';
+    var autoCharacteristic = 'beb5483f-36e2-4688-b7f5-ea07361b26a8';
 
     //Global Variables to Handle Bluetooth
     var bleServer;
     var bleServiceFound;
-    let intervalIdObj = { id: null }; // Objet pour stocker la référence de l'intervalle
-    //var pCharacteristicFound;
-
+    var pCharacteristicFound;
+    var autoCharacteristicFound;
+    let isOpen = false;
+    let blinkProgress = false;
     // Connect Button (search for BLE Devices only if BLE is available)
     connectButton.addEventListener('click', (event) => {
         if (isWebBluetoothEnabled()){
@@ -58,6 +61,8 @@
 
     // Disconnect Button
     disconnectButton.addEventListener('click', disconnectDevice);
+    // Auto Lock Unlock Checkbox
+    checkboxAuto.addEventListener('change', autoLockUnlock);
 
     // Write to the ESP32 Characteristic
     //onButton.addEventListener('click', () => writeOnCharacteristic(1));
@@ -102,38 +107,44 @@
         })
         .then(characteristic => {
             console.log("Characteristic discovered:", characteristic.uuid);
+            characteristic.addEventListener('characteristicvaluechanged', handleCharacteristicChange);
+            characteristic.startNotifications();
             console.log("Notifications Started.");
-            intervalIdObj.id = setInterval(() => {readCharacteristicValue(characteristic);}, 3000);
             return characteristic.readValue();
         })
         .then(value => {
             bleStateContainer.innerHTML = 'Connected to Car';
             bleStateContainer.style.color = "#ffA500";
-            console.log("Read value: ", value);
-            const decodedValue = new TextDecoder().decode(value);
-            console.log("Decoded value: ", decodedValue);
-            CharacteristicConv(decodedValue);
+            //console.log("Read value: ", value);
+            //const decodedValue = new TextDecoder().decode(value);
+            //console.log("Decoded value: ", decodedValue);
+            //CharacteristicConv(decodedValue);
             var button = document.querySelector('.statusButton');
             button.classList.add('statusButton-connected');
-
         })
         .catch(error => {
             console.log('Error: ', error);
-            clearInterval(intervalIdObj.id); // Arrêter l'intervalle
+            bleStateContainer.innerHTML = 'Error! Try to reconnect';
+            bleStateContainer.style.color = "#ffA500";
         })
     }
 
     function onDisconnected(event){
         console.log('Device Disconnected:', event.target.device.name);
-        bleStateContainer.innerHTML = "Device disconnected";
-        bleStateContainer.style.color = "#d13a30";
-        clearInterval(intervalIdObj.id); // Arrêter l'intervalle
+        bleStateContainer.innerHTML = "Disconnected";
+        bleStateContainer.style.color = "#bebebe";
         var button = document.querySelector('.statusButton');
         button.classList.remove('statusButton-connected');
         connectToDevice();
     }
 
-    function readCharacteristicValue(characteristic) {
+    function handleCharacteristicChange(event){
+        const newValueReceived = new TextDecoder().decode(event.target.value);
+        console.log("Characteristic value changed: ", newValueReceived);
+        CharacteristicConv(newValueReceived);
+    }
+
+    /*function readCharacteristicValue(characteristic) {
         characteristic.readValue()
         .then(value => {
             const decodedValue = new TextDecoder().decode(value);
@@ -144,7 +155,7 @@
         .catch(error => {
             console.error('Erreur lors de la lecture de la caractéristique:', error);
         });
-    }
+    }*/
 
     function writeOnCharacteristic(value){
         if (bleServer && bleServer.connected) {
@@ -155,7 +166,6 @@
                 return characteristic.writeValue(data);
             })
             .then(() => {
-                //CharacteristicConv(value);
                 console.log("Value written to pcharacteristic:", value);
             })
             .catch(error => {
@@ -167,13 +177,33 @@
         }
     }
 
+    function writeOnAutoCharacteristic(value){
+        if (bleServer && bleServer.connected) {
+            bleServiceFound.getCharacteristic(autoCharacteristic)
+            .then(characteristic => {
+                console.log("Found the  autocharacteristic: ", characteristic.uuid);
+                const data = new Uint8Array([value]);
+                return characteristic.writeValue(data);
+            })
+            .then(() => {
+                console.log("Value written to autocharacteristic:", value);
+            })
+            .catch(error => {
+                console.error("Error writing to the autocharacteristic: ", error);
+            });
+        } else {
+            console.error ("Bluetooth is not connected. Cannot write to characteristic.")
+            window.alert("Bluetooth is not connected. Cannot write to characteristic. \n Connect to BLE first!")
+        }
+    }
+
+
     function disconnectDevice() {
         console.log("Disconnect Device.");
         if (bleServer && bleServer.connected) {
             bleServer.disconnect();
-            clearInterval(intervalIdObj.id); // Arrêter l'intervalle
             bleStateContainer.innerHTML = "Device Disconnected";
-            bleStateContainer.style.color = "#d13a30";
+            bleStateContainer.style.color = "#bebebe";
             var button = document.querySelector('.statusButton');
             button.classList.remove('statusButton-connected');
 
@@ -196,8 +226,6 @@
         }
     }
 
-    let isOpen = false;
-
     function toggleStatus() {
         isOpen = !isOpen;
 
@@ -205,17 +233,28 @@
 
         var button = document.querySelector('.statusButton');
         button.classList.add('blink-animation');
-        // Arrêtez le clignotement après 5 secondes
-        setTimeout(function () {button.classList.remove('blink-animation');}, 2000);
-
+        // Arrêtez le clignotement après 2 secondes
+        setTimeout(function () {button.classList.remove('blink-animation');}, 3000);
+        
         if (isOpen) {
             statusButton.textContent = 'Unlocking...';
             writeOnCharacteristic(1);
         } else {
             statusButton.textContent = 'Locking...';
             writeOnCharacteristic(0);
+        }
     }
-}
+
+    function autoLockUnlock(){
+        console.log(`Auto Unlock/Lock ${checkboxAuto.checked ? 'activated' : 'deactivated'}.`);
+        const value = checkboxAuto.checked ? 1 : 0;
+        if (value == 1){
+            writeOnAutoCharacteristic(1);
+        }
+        if (value == 0){
+            writeOnAutoCharacteristic(0);
+        }
+    }
 
 </script>
 
