@@ -39,17 +39,31 @@ bool deviceConnected = false;
 bool autoLockUnlock = false;
 bool engineRun = false;
 
+bool protectLockUnlock = false;
+
 
 void UnLockRelay() {
-  digitalWrite(relayUnlock, LOW);
-  delay(2000);
-  digitalWrite(relayUnlock, HIGH);
+  if (!protectLockUnlock)
+  {
+    protectLockUnlock = true;
+    digitalWrite(relayUnlock, LOW);
+    delay(2000);
+    digitalWrite(relayUnlock, HIGH);
+    delay(1000);
+    protectLockUnlock = false;
+  }
 };
 
 void LockRelay() {
-  digitalWrite(relayLock, LOW);
-  delay(2000);
-  digitalWrite(relayLock, HIGH);
+  if (!protectLockUnlock)
+  {
+    protectLockUnlock = true;
+    digitalWrite(relayLock, LOW);
+    delay(2000);
+    digitalWrite(relayLock, HIGH);
+    delay(1000);
+    protectLockUnlock = false;
+  }
 };
 void UnLockRelay();
 void LockRelay();
@@ -199,7 +213,6 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks
         pCharacteristic->setValue("1");
         carOpen = true;
         UnLockRelay();
-
         Serial.println("----");
         Serial.println("Unlock");
         Serial.println("----");
