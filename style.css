@@ -22,6 +22,11 @@ body {
     height: 100%;
     text-align: center;
 }
+.content2 {
+  padding : 10px 30px 30px 30px;
+  height: 100%;
+  text-align: center;
+}
 button {
     color: white;
     padding: 14px 20px;
