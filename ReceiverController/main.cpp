@@ -9,6 +9,7 @@
 
 #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+#define AUTOUNLOCK_CHARACTERISTIC_UUID "beb5483f-36e2-4688-b7f5-ea07361b26a8"
 #define PASSKEY 111111
 
 #define IRK_LIST_NUMBER 2
@@ -25,6 +26,7 @@ const int relayLock = 27;
 // Service et caractéristique Bluetooth personnalisés
 BLEServer* pServer = NULL;
 BLECharacteristic* pCharacteristic = NULL;
+BLECharacteristic* autoCharacteristic = NULL;
 // Range to RSSI
 int RSSI_THRESHOLD_OPEN = -70;
 int RSSI_THRESHOLD_CLOSED = -90;
@@ -33,6 +35,9 @@ bool IphoneDetect = false;
 bool proximityDeadZone = false;
 bool carOpen = false;
 bool deviceConnected = false;
+
+bool autoLockUnlock = false;
+bool engineRun = false;
 
 
 void UnLockRelay() {
@@ -108,7 +113,7 @@ void bleSecurity() {
 ////////////////////////////
 void BleDataCheckTask() {
     BLEScan *pBLEScan = BLEDevice::getScan();
-    BLEScanResults foundDevices = pBLEScan->start(2, false);  // Scan pendant 3 secondes
+    BLEScanResults foundDevices = pBLEScan->start(5, false);  // Scan pendant 3 secondes
 
     bool proximityOk = false;
     bool proximityNok = false;
@@ -194,8 +199,9 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks
         pCharacteristic->setValue("1");
         carOpen = true;
         UnLockRelay();
+
         Serial.println("----");
-        Serial.println("Open");
+        Serial.println("Unlock");
         Serial.println("----");
       } else if (receivedValue == 0) {
         //isOpen = false;
@@ -203,13 +209,40 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks
         carOpen = false;
         LockRelay();
         Serial.println("------");
-        Serial.println("Closed");
+        Serial.println("Lock");
         Serial.println("------");
       }
     pCharacteristic->notify();
     }
   }
 };
+
+class MyAutoCharacteristicCallbacks: public BLECharacteristicCallbacks
+{
+  void onWrite(BLECharacteristic *autoCharacteristic)
+  {
+    std::string value = autoCharacteristic->getValue();
+
+    if (value.length() == 1) {
+      int receivedValue = static_cast<int>(value[0]);
+      if (receivedValue == 1) {
+        autoCharacteristic->setValue("1");
+        autoLockUnlock = true;
+        Serial.println("----");
+        Serial.println("Auto Lock activate");
+        Serial.println("----");
+      } else if (receivedValue == 0) {
+        autoCharacteristic->setValue("0");
+        autoLockUnlock = false;
+        Serial.println("------");
+        Serial.println("Auto Lock deactivate");
+        Serial.println("------");
+      }
+    autoCharacteristic->notify();
+    }
+  }
+};
+
 
 ////////////////////
 //BLUETOOTH SERVER//
@@ -247,14 +280,25 @@ void setup() {
                                         BLECharacteristic::PROPERTY_NOTIFY |
                                         BLECharacteristic::PROPERTY_INDICATE
                     );
+    autoCharacteristic = pService->createCharacteristic(
+                                        AUTOUNLOCK_CHARACTERISTIC_UUID,
+                                        BLECharacteristic::PROPERTY_READ |
+                                        BLECharacteristic::PROPERTY_WRITE |
+                                        BLECharacteristic::PROPERTY_NOTIFY |
+                                        BLECharacteristic::PROPERTY_INDICATE
+                    );
     // Définit la Callback pour le securite
     pCharacteristic->setAccessPermissions(ESP_GATT_PERM_READ_ENCRYPTED | ESP_GATT_PERM_WRITE_ENCRYPTED);
+    autoCharacteristic->setAccessPermissions(ESP_GATT_PERM_READ_ENCRYPTED | ESP_GATT_PERM_WRITE_ENCRYPTED);
     // Définit la Callback pour le caractéristique
     pCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
+    autoCharacteristic->setCallbacks(new MyAutoCharacteristicCallbacks());
     // Définit la valeur initiale du caractéristique
     pCharacteristic->setValue("0");
+    autoCharacteristic->setValue("0");
      // Create a BLE Descriptor
     pCharacteristic->addDescriptor(new BLE2902());
+    autoCharacteristic->addDescriptor(new BLE2902());
     // Démarre le service BLE
     pService->start();
     // Commence à diffuser le service BLE
@@ -276,11 +320,11 @@ void loop() {
     BleDataCheckTask();
     Serial.println(" ");
     Serial.println("-------------------------------------");
-    if (!IphoneDetect) {
+    if (!IphoneDetect && autoLockUnlock) {
         if (!carOpen) {
             Serial.println("Waiting to Detect Iphone");
         }
-        if (carOpen && !proximityDeadZone) {
+        if (carOpen && !proximityDeadZone && !engineRun) {
             Serial.println("No iphone Detected, Closing the car");
             pCharacteristic->setValue("0");
             pCharacteristic->notify();
@@ -289,7 +333,7 @@ void loop() {
             delay(5000);
         }
     }
-    if (IphoneDetect) {
+    if (IphoneDetect && autoLockUnlock) {
         if (carOpen) {
             Serial.println("Awaiting... Car is open");
         }
