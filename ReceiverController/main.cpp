@@ -39,31 +39,33 @@ bool deviceConnected = false;
 bool autoLockUnlock = false;
 bool engineRun = false;
 
-bool protectLockUnlock = false;
+//bool protectLockUnlock = false;
 
 
 void UnLockRelay() {
-  if (!protectLockUnlock)
-  {
-    protectLockUnlock = true;
+  //if (!protectLockUnlock)
+  //{
+    //protectLockUnlock = true;
     digitalWrite(relayUnlock, LOW);
     delay(2000);
     digitalWrite(relayUnlock, HIGH);
-    delay(1000);
-    protectLockUnlock = false;
-  }
+    delay(500);
+    Serial.println("### Unlock ###");
+    //protectLockUnlock = false;
+  //}
 };
 
 void LockRelay() {
-  if (!protectLockUnlock)
-  {
-    protectLockUnlock = true;
+  //if (!protectLockUnlock)
+  //{
+    //protectLockUnlock = true;
     digitalWrite(relayLock, LOW);
     delay(2000);
     digitalWrite(relayLock, HIGH);
-    delay(1000);
-    protectLockUnlock = false;
-  }
+    delay(500);
+    Serial.println("### Lock ###");
+    //protectLockUnlock = false;
+  //}
 };
 void UnLockRelay();
 void LockRelay();
@@ -93,7 +95,7 @@ class SecurityCallback : public BLESecurityCallbacks {
         Serial.println("Authentication Success");
         digitalWrite(LED_BUILTIN, HIGH);
       } else {
-        Serial.println("Authentication Failure*");
+        Serial.println("Authentication Failure");
         pServer->removePeerDevice(pServer->getConnId(), true);
       }
       BLEDevice::startAdvertising();
@@ -143,23 +145,23 @@ void BleDataCheckTask() {
             if (btm_ble_addr_resolvable((uint8_t *)AdMac.getNative(), irk[j])) {
                 //Serial.println("........................................");
                 //printf("Mac = %s Belongs to: %s\r\n", AdMac.toString().c_str(), IrkListName[j]);
-                Serial.println((String)IrkListName[j] + " is detected");
+                Serial.print((String)IrkListName[j] + " is detected ##");
                 int rssi = device.getRSSI();
-                Serial.print("RSSI: ");
+                Serial.print(" RSSI: ");
                 Serial.print(rssi);
                 if (rssi >= RSSI_THRESHOLD_OPEN)
                 {
-                    Serial.println(" Device Proximity : Ok");
+                    Serial.println(" ## Device Proximity: Ok");
                     proximityOk = true;
                 }
                 if (rssi < RSSI_THRESHOLD_OPEN && rssi > RSSI_THRESHOLD_CLOSED)
                 {
-                    Serial.println(" Device Proximity :  Dead zone");
+                    Serial.println(" ## Device Proximity:  Dead zone");
                     proximityDeadZone = true;
                 }
                 if (rssi <= RSSI_THRESHOLD_CLOSED)
                 {
-                    Serial.println(" Device Proximity : Nok");
+                    Serial.println(" ## Device Proximity: Nok");
                     proximityNok = true;
                 }
             }
@@ -209,21 +211,13 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks
     if (value.length() == 1) {
       int receivedValue = static_cast<int>(value[0]);
       if (receivedValue == 1) {
-        //isOpen = true;
         pCharacteristic->setValue("1");
         carOpen = true;
         UnLockRelay();
-        Serial.println("----");
-        Serial.println("Unlock");
-        Serial.println("----");
       } else if (receivedValue == 0) {
-        //isOpen = false;
         pCharacteristic->setValue("0");
         carOpen = false;
         LockRelay();
-        Serial.println("------");
-        Serial.println("Lock");
-        Serial.println("------");
       }
     pCharacteristic->notify();
     }
@@ -241,15 +235,11 @@ class MyAutoCharacteristicCallbacks: public BLECharacteristicCallbacks
       if (receivedValue == 1) {
         autoCharacteristic->setValue("1");
         autoLockUnlock = true;
-        Serial.println("----");
-        Serial.println("Auto Lock activate");
-        Serial.println("----");
+        Serial.println("### Auto Lock activate ###");
       } else if (receivedValue == 0) {
         autoCharacteristic->setValue("0");
         autoLockUnlock = false;
-        Serial.println("------");
-        Serial.println("Auto Lock deactivate");
-        Serial.println("------");
+        Serial.println("### Auto Lock deactivate ###");
       }
     autoCharacteristic->notify();
     }
@@ -332,13 +322,12 @@ void loop() {
     proximityDeadZone = false;
     BleDataCheckTask();
     Serial.println(" ");
-    Serial.println("-------------------------------------");
     if (!IphoneDetect && autoLockUnlock) {
         if (!carOpen) {
             Serial.println("Waiting to Detect Iphone");
         }
         if (carOpen && !proximityDeadZone && !engineRun) {
-            Serial.println("No iphone Detected, Closing the car");
+            Serial.println("No iphone Detected, locking the car");
             pCharacteristic->setValue("0");
             pCharacteristic->notify();
             LockRelay();
@@ -351,7 +340,7 @@ void loop() {
             Serial.println("Awaiting... Car is open");
         }
         if (!carOpen){
-            Serial.println("iPhone(s) detected, opening the car");
+            Serial.println("iPhone(s) detected, unlocking the car");
             pCharacteristic->setValue("1");
             pCharacteristic->notify();
             UnLockRelay();
@@ -359,6 +348,4 @@ void loop() {
             delay(5000);
         }
     }
-    Serial.println("-------------------------------------");
-
 }
