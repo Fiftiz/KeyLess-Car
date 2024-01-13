@@ -1,3 +1,14 @@
+/*********
+  THIROUX Yannis 
+  
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files.
+  
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  ©2023 THIROUX Yannis, tous droits réservés.
+*********/
 #include <Arduino.h>
 #include <BLEDevice.h>
 #include <BLEUtils.h>
@@ -6,6 +17,8 @@
 #include <BLEAdvertising.h>
 
 #include "irk.h"
+#include <relay.h>
+#include <sensor.h>
 
 #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
@@ -20,9 +33,13 @@ uint8_t irk[IRK_LIST_NUMBER][ESP_BT_OCTET16_LEN]= {
     // IRK of B
     {0x85,0x89,0x90,0xBE,0x9C,0xBE,0xBC,0xE7,0xFE,0xEE,0x6B,0xCE,0x5E,0x62,0xE9,0x75}
 };
+//Var bool on the StartEngine function
+bool EngineStarted = false;
+bool flowEngine = false;
+bool IgnitionStarted = false;
+//Activation Lock UNlock function
+bool autoLockUnlock = false;
 
-const int relayUnlock = 26;
-const int relayLock = 27;
 // Service et caractéristique Bluetooth personnalisés
 BLEServer* pServer = NULL;
 BLECharacteristic* pCharacteristic = NULL;
@@ -35,40 +52,10 @@ bool IphoneDetect = false;
 bool proximityDeadZone = false;
 bool carOpen = false;
 bool deviceConnected = false;
-
-bool autoLockUnlock = false;
-bool engineRun = false;
-
-//bool protectLockUnlock = false;
+//Val Voltage
+float Voltage;
 
 
-void UnLockRelay() {
-  //if (!protectLockUnlock)
-  //{
-    //protectLockUnlock = true;
-    digitalWrite(relayUnlock, LOW);
-    delay(2000);
-    digitalWrite(relayUnlock, HIGH);
-    delay(500);
-    Serial.println("### Unlock ###");
-    //protectLockUnlock = false;
-  //}
-};
-
-void LockRelay() {
-  //if (!protectLockUnlock)
-  //{
-    //protectLockUnlock = true;
-    digitalWrite(relayLock, LOW);
-    delay(2000);
-    digitalWrite(relayLock, HIGH);
-    delay(500);
-    Serial.println("### Lock ###");
-    //protectLockUnlock = false;
-  //}
-};
-void UnLockRelay();
-void LockRelay();
 
 /////////////////////
 //BLE Secure Server//
@@ -93,7 +80,6 @@ class SecurityCallback : public BLESecurityCallbacks {
     void onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) {
       if (cmpl.success) {
         Serial.println("Authentication Success");
-        digitalWrite(LED_BUILTIN, HIGH);
       } else {
         Serial.println("Authentication Failure");
         pServer->removePeerDevice(pServer->getConnId(), true);
@@ -145,23 +131,23 @@ void BleDataCheckTask() {
             if (btm_ble_addr_resolvable((uint8_t *)AdMac.getNative(), irk[j])) {
                 //Serial.println("........................................");
                 //printf("Mac = %s Belongs to: %s\r\n", AdMac.toString().c_str(), IrkListName[j]);
-                Serial.print((String)IrkListName[j] + " is detected ##");
+                Serial.print((String)IrkListName[j] + " is detected,");
                 int rssi = device.getRSSI();
                 Serial.print(" RSSI: ");
                 Serial.print(rssi);
                 if (rssi >= RSSI_THRESHOLD_OPEN)
                 {
-                    Serial.println(" ## Device Proximity: Ok");
+                    Serial.println("--> Device Proximity: Ok");
                     proximityOk = true;
                 }
                 if (rssi < RSSI_THRESHOLD_OPEN && rssi > RSSI_THRESHOLD_CLOSED)
                 {
-                    Serial.println(" ## Device Proximity:  Dead zone");
+                    Serial.println("--> Device Proximity:  Dead zone");
                     proximityDeadZone = true;
                 }
                 if (rssi <= RSSI_THRESHOLD_CLOSED)
                 {
-                    Serial.println(" ## Device Proximity: Nok");
+                    Serial.println("--> Device Proximity: Nok");
                     proximityNok = true;
                 }
             }
@@ -172,6 +158,43 @@ void BleDataCheckTask() {
     }
     if (proximityNok && !proximityOk && !proximityDeadZone) {
         IphoneDetect = false;
+    }
+}
+
+void IphoneDetectFunc(){
+
+if (!IphoneDetect && autoLockUnlock) {
+        if (!carOpen) {
+            Serial.println("Waiting to Detect Iphone");
+        }
+        if (carOpen && !proximityDeadZone && !EngineStarted) {
+            Serial.println("No iphone Detected, locking the car");
+            pCharacteristic->setValue("0");
+            pCharacteristic->notify();
+            LockRelay();
+            carOpen = false;
+            IgnitionOFFduringStart(HIGH);
+            IgnitionONduringStart(HIGH);
+            IgnitionStarted = false;
+            delay(2000);
+        }
+    }
+    if (IphoneDetect && autoLockUnlock) {
+        if (carOpen) {
+            Serial.println("Awaiting... Car is open");
+        }
+        if (!carOpen && !EngineStarted){
+            Serial.println("iPhone(s) detected, unlocking the car");
+            pCharacteristic->setValue("1");
+            pCharacteristic->notify();
+            UnLockRelay();
+            carOpen = true;
+            IgnitionOFFduringStart(LOW);
+            IgnitionONduringStart(LOW);
+            IgnitionStarted = true;
+            Serial.println("Ignition Start");
+            delay(2000);
+        }
     }
 }
 
@@ -252,17 +275,34 @@ class MyAutoCharacteristicCallbacks: public BLECharacteristicCallbacks
 ////////////////////
 
 
+//Create Task on the core 0 to update information
+TaskHandle_t Task1;
+void Task1Scan(void * pvParameters){
+      //Serial.print("TaskUpdateInfo running on core ");
+      //Serial.println(xPortGetCoreID());
+    for(;;){
+    Serial.println("Scan.....");
+    IphoneDetect = false; // Réinitialisez la variable avant chaque balayage
+    proximityDeadZone = false; // Réinitialisez la variable avant chaque balayage
+    BleDataCheckTask();
+    IphoneDetectFunc();
+    voltage();
+    Serial.print("Voltage: ");
+    Serial.println(Voltage);
+    } 
+  }
+
+
 void setup() {
     Serial.begin(115200);
     //Declare pinMode
-    pinMode(relayLock, OUTPUT);
-    pinMode(relayUnlock, OUTPUT);
-    digitalWrite(relayLock, HIGH);
-    digitalWrite(relayUnlock, HIGH);
+    initPin();
 
+    initPosition();
 
+    initpinsensor();
     // Underclock CPU to Energize save
-    setCpuFrequencyMhz(80);
+    //setCpuFrequencyMhz(80);
     // Initialise le BLE
     BLEDevice::init("KeyLess Car");
     BLEDevice::setEncryptionLevel(ESP_BLE_SEC_ENCRYPT);
@@ -313,39 +353,28 @@ void setup() {
 
     bleSecurity();
     Serial.println("Bluetooth Server ok");
+
+    voltage();
+    Serial.print("Voltage: ");
+    Serial.println(Voltage);
+    checkEngineStart();
+    delay(2000);
+
+         //------------------------TASK TO START ENGINE------------------------
+    xTaskCreatePinnedToCore(
+                    Task1Scan,   /* Task function. */
+                    "Task1Scan",     /* name of task. */
+                    10000,       /* Stack size of task */
+                    NULL,        /* parameter of the task */
+                    1,           /* priority of the task */
+                    &Task1,      /* Task handle to keep track of created task */
+                    0);          /* pin task to core 0 */                  
+    delay(500);
+ 
 }
 
+
 void loop() {
-    Serial.println("Scan.....");
-    Serial.println(" ");
-    IphoneDetect = false; // Réinitialisez la variable avant chaque balayage
-    proximityDeadZone = false;
-    BleDataCheckTask();
-    Serial.println(" ");
-    if (!IphoneDetect && autoLockUnlock) {
-        if (!carOpen) {
-            Serial.println("Waiting to Detect Iphone");
-        }
-        if (carOpen && !proximityDeadZone && !engineRun) {
-            Serial.println("No iphone Detected, locking the car");
-            pCharacteristic->setValue("0");
-            pCharacteristic->notify();
-            LockRelay();
-            carOpen = false;
-            delay(5000);
-        }
-    }
-    if (IphoneDetect && autoLockUnlock) {
-        if (carOpen) {
-            Serial.println("Awaiting... Car is open");
-        }
-        if (!carOpen){
-            Serial.println("iPhone(s) detected, unlocking the car");
-            pCharacteristic->setValue("1");
-            pCharacteristic->notify();
-            UnLockRelay();
-            carOpen = true;
-            delay(5000);
-        }
-    }
+    // Start Engine
+    StartEngine();
 }
