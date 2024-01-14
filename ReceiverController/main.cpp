@@ -20,6 +20,10 @@
 #include <relay.h>
 #include <sensor.h>
 
+///////////////////
+//Variable Server//
+///////////////////
+
 #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 #define AUTOUNLOCK_CHARACTERISTIC_UUID "beb5483f-36e2-4688-b7f5-ea07361b26a8"
@@ -55,6 +59,10 @@ bool deviceConnected = false;
 //Val Voltage
 float Voltage;
 
+
+///////////////////
+//Variable Server//
+///////////////////
 
 
 /////////////////////
@@ -162,7 +170,6 @@ void BleDataCheckTask() {
 }
 
 void IphoneDetectFunc(){
-
 if (!IphoneDetect && autoLockUnlock) {
         if (!carOpen) {
             Serial.println("Waiting to Detect Iphone");
@@ -173,9 +180,9 @@ if (!IphoneDetect && autoLockUnlock) {
             pCharacteristic->notify();
             LockRelay();
             carOpen = false;
-            IgnitionOFFduringStart(HIGH);
-            IgnitionONduringStart(HIGH);
-            IgnitionStarted = false;
+            //IgnitionOFFduringStart(HIGH);
+            //IgnitionONduringStart(HIGH);
+            //IgnitionStarted = false;
             delay(2000);
         }
     }
@@ -189,10 +196,10 @@ if (!IphoneDetect && autoLockUnlock) {
             pCharacteristic->notify();
             UnLockRelay();
             carOpen = true;
-            IgnitionOFFduringStart(LOW);
-            IgnitionONduringStart(LOW);
-            IgnitionStarted = true;
-            Serial.println("Ignition Start");
+            //IgnitionOFFduringStart(LOW);
+            //IgnitionONduringStart(LOW);
+            //IgnitionStarted = true;
+            //Serial.println("Ignition Start");
             delay(2000);
         }
     }
@@ -207,6 +214,7 @@ if (!IphoneDetect && autoLockUnlock) {
 //BLUETOOTH SERVER//
 ////////////////////
 
+// Devise Connected Or Disconnected
 class MyServerCallbacks: public BLEServerCallbacks {
   void onConnect(BLEServer* pServer) {
   deviceConnected = true;
@@ -225,6 +233,7 @@ class MyServerCallbacks: public BLEServerCallbacks {
 };
 
 
+// Write Lock Unlock Characteristics
 class MyCharacteristicCallbacks: public BLECharacteristicCallbacks
 {
   void onWrite(BLECharacteristic *pCharacteristic)
@@ -247,6 +256,8 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks
   }
 };
 
+
+// Write Activate Lock Unlock Characteristics
 class MyAutoCharacteristicCallbacks: public BLECharacteristicCallbacks
 {
   void onWrite(BLECharacteristic *autoCharacteristic)
@@ -275,6 +286,10 @@ class MyAutoCharacteristicCallbacks: public BLECharacteristicCallbacks
 ////////////////////
 
 
+////////////////////
+//TASK ON CORE [0]//
+////////////////////
+
 //Create Task on the core 0 to update information
 TaskHandle_t Task1;
 void Task1Scan(void * pvParameters){
@@ -286,95 +301,102 @@ void Task1Scan(void * pvParameters){
     proximityDeadZone = false; // Réinitialisez la variable avant chaque balayage
     BleDataCheckTask();
     IphoneDetectFunc();
-    voltage();
-    Serial.print("Voltage: ");
-    Serial.println(Voltage);
+    //voltage();
+    //Serial.print("Voltage: ");
+    //Serial.println(Voltage);
     } 
   }
 
+////////////////////
+//TASK ON CORE [0]//
+////////////////////
+
 
 void setup() {
-    Serial.begin(115200);
-    //Declare pinMode
-    initPin();
+  Serial.begin(115200);
+  //Declare pinMode
+  initPin();
 
-    initPosition();
+  initPosition();
 
-    initpinsensor();
-    // Underclock CPU to Energize save
-    //setCpuFrequencyMhz(80);
-    // Initialise le BLE
-    BLEDevice::init("KeyLess Car");
-    BLEDevice::setEncryptionLevel(ESP_BLE_SEC_ENCRYPT);
-    BLEDevice::setSecurityCallbacks(new SecurityCallback());
-    // Crée le serveur BLE
-    pServer = BLEDevice::createServer();
-     // Définit la Callback pour les connections
-    pServer->setCallbacks(new MyServerCallbacks());
-     // Create the BLE Service
-    BLEService *pService = pServer->createService(SERVICE_UUID);
+  initpinsensor();
+  // Underclock CPU to Energize save
+  //setCpuFrequencyMhz(80);
+  // Initialise le BLE
+  BLEDevice::init("KeyLess Car");
+  BLEDevice::setEncryptionLevel(ESP_BLE_SEC_ENCRYPT);
+  BLEDevice::setSecurityCallbacks(new SecurityCallback());
+  // Crée le serveur BLE
+  pServer = BLEDevice::createServer();
+   // Définit la Callback pour les connections
+  pServer->setCallbacks(new MyServerCallbacks());
+   // Create the BLE Service
+  BLEService *pService = pServer->createService(SERVICE_UUID);
 
     
-    // Crée le caractéristique BLE
-    pCharacteristic = pService->createCharacteristic(
-                                        CHARACTERISTIC_UUID,
-                                        BLECharacteristic::PROPERTY_READ |
-                                        BLECharacteristic::PROPERTY_WRITE |
-                                        BLECharacteristic::PROPERTY_NOTIFY |
-                                        BLECharacteristic::PROPERTY_INDICATE
-                    );
-    autoCharacteristic = pService->createCharacteristic(
-                                        AUTOUNLOCK_CHARACTERISTIC_UUID,
-                                        BLECharacteristic::PROPERTY_READ |
-                                        BLECharacteristic::PROPERTY_WRITE |
-                                        BLECharacteristic::PROPERTY_NOTIFY |
-                                        BLECharacteristic::PROPERTY_INDICATE
-                    );
-    // Définit la Callback pour le securite
-    pCharacteristic->setAccessPermissions(ESP_GATT_PERM_READ_ENCRYPTED | ESP_GATT_PERM_WRITE_ENCRYPTED);
-    autoCharacteristic->setAccessPermissions(ESP_GATT_PERM_READ_ENCRYPTED | ESP_GATT_PERM_WRITE_ENCRYPTED);
-    // Définit la Callback pour le caractéristique
-    pCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
-    autoCharacteristic->setCallbacks(new MyAutoCharacteristicCallbacks());
-    // Définit la valeur initiale du caractéristique
-    pCharacteristic->setValue("0");
-    autoCharacteristic->setValue("0");
-     // Create a BLE Descriptor
-    pCharacteristic->addDescriptor(new BLE2902());
-    autoCharacteristic->addDescriptor(new BLE2902());
-    // Démarre le service BLE
-    pService->start();
-    // Commence à diffuser le service BLE
-    BLEAdvertising *pAdvertising = pServer->getAdvertising();
-    pAdvertising->setScanResponse(true);
-    pAdvertising->setMinPreferred(0x06);  // functions that help with iPhone connections issue
-    pAdvertising->setMinPreferred(0x12);
-    pAdvertising->start();
+  // Crée le caractéristique BLE
+  pCharacteristic = pService->createCharacteristic(
+                                      CHARACTERISTIC_UUID,
+                                      BLECharacteristic::PROPERTY_READ |
+                                      BLECharacteristic::PROPERTY_WRITE |
+                                      BLECharacteristic::PROPERTY_NOTIFY |
+                                      BLECharacteristic::PROPERTY_INDICATE
+                  );
+  autoCharacteristic = pService->createCharacteristic(
+                                      AUTOUNLOCK_CHARACTERISTIC_UUID,
+                                      BLECharacteristic::PROPERTY_READ |
+                                      BLECharacteristic::PROPERTY_WRITE |
+                                      BLECharacteristic::PROPERTY_NOTIFY |
+                                      BLECharacteristic::PROPERTY_INDICATE
+                  );
+  // Définit la Callback pour le securite
+  pCharacteristic->setAccessPermissions(ESP_GATT_PERM_READ_ENCRYPTED | ESP_GATT_PERM_WRITE_ENCRYPTED);
+  autoCharacteristic->setAccessPermissions(ESP_GATT_PERM_READ_ENCRYPTED | ESP_GATT_PERM_WRITE_ENCRYPTED);
+  // Définit la Callback pour le caractéristique
+  pCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
+  autoCharacteristic->setCallbacks(new MyAutoCharacteristicCallbacks());
+  // Définit la valeur initiale du caractéristique
+  pCharacteristic->setValue("0");
+  autoCharacteristic->setValue("0");
+   // Create a BLE Descriptor
+  pCharacteristic->addDescriptor(new BLE2902());
+  autoCharacteristic->addDescriptor(new BLE2902());
+  // Démarre le service BLE
+  pService->start();
+  // Commence à diffuser le service BLE
+  BLEAdvertising *pAdvertising = pServer->getAdvertising();
+  pAdvertising->setScanResponse(true);
+  pAdvertising->setMinPreferred(0x06);  // functions that help with iPhone connections issue
+  pAdvertising->setMinPreferred(0x12);
+  pAdvertising->start();
 
-    bleSecurity();
-    Serial.println("Bluetooth Server ok");
+  bleSecurity();
+  Serial.println("Bluetooth Server ok");
 
-    voltage();
-    Serial.print("Voltage: ");
-    Serial.println(Voltage);
-    checkEngineStart();
-    delay(2000);
 
-         //------------------------TASK TO START ENGINE------------------------
-    xTaskCreatePinnedToCore(
-                    Task1Scan,   /* Task function. */
-                    "Task1Scan",     /* name of task. */
-                    10000,       /* Stack size of task */
-                    NULL,        /* parameter of the task */
-                    1,           /* priority of the task */
-                    &Task1,      /* Task handle to keep track of created task */
-                    0);          /* pin task to core 0 */                  
-    delay(500);
+  voltage();
+  Serial.print("Voltage: ");
+  Serial.println(Voltage);
+  checkEngineStart();
+
+
+  delay(2000);
+
+    //------------------------TASK TO START ENGINE------------------------
+  xTaskCreatePinnedToCore(
+                  Task1Scan,   /* Task function. */
+                  "Task1Scan",     /* name of task. */
+                  10000,       /* Stack size of task */
+                  NULL,        /* parameter of the task */
+                  1,           /* priority of the task */
+                  &Task1,      /* Task handle to keep track of created task */
+                  0);          /* pin task to core 0 */                  
+  delay(500);
  
 }
 
 
 void loop() {
-    // Start Engine
-    StartEngine();
+  // Start Engine
+  StartEngine();
 }

@@ -17,5 +17,6 @@
 void voltage();
 void initpinsensor();
 void checkEngineStart();
+float getVPP();
 
 #endif

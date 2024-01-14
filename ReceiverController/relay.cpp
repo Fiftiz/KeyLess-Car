@@ -15,7 +15,7 @@
 #include <sensor.h>
 
 //Relai 30A de demarrage
-const int startSwitchPin = 21; //BOUTON SUR PIN36, Autre fil sur GND en pullup
+const int startSwitchPin = 21; //BOUTON SUR PIN21, Autre fil sur GND en pullup
 int startSwitchState = 0;
 const int relayIGN3 = 14;        //Sur PIN14
 const int relayAccy = 27;        //Sur PIN27
@@ -124,25 +124,35 @@ void StartEngine() {
     // delay, so take it as the actual current state:
 
     // if the button state has changed:
-    if(lastSteadyState == HIGH && currentState == LOW && IgnitionStarted && !EngineStarted){
+
+    //////////////IGNITION ON
+    //PRESS SWITCH
+    if(lastSteadyState == HIGH && currentState == LOW &&!IgnitionStarted && !EngineStarted){
+      Serial.println("Ignition Starting...");
+      IgnitionOFFduringStart(LOW);
+      IgnitionONduringStart(LOW);
+      flowEngine = true;
+      }
+    //RELEASE SWITCH
+    else if(lastSteadyState == LOW && currentState == HIGH &&!IgnitionStarted && !EngineStarted &&flowEngine){
+      IgnitionStarted = true;
+      flowEngine = false;
+      Serial.println("Ignition Started");
+      }
+    //////////////ENGINE START
+    //PRESS SWITCH
+    else if(lastSteadyState == HIGH && currentState == LOW && IgnitionStarted && !EngineStarted){
       Serial.println("Starting Engine...");
       IgnitionOFFduringStart(HIGH);
       delay(500);
       digitalWrite(relayStart, LOW);
       }
+    //RELEASE SWITCH
     else if(lastSteadyState == LOW && currentState == HIGH && IgnitionStarted && !EngineStarted){
       digitalWrite(relayStart, HIGH);
       delay(500);
       IgnitionOFFduringStart(LOW);
-      //EngineStarted = true;
-      //Serial.println("Engine Started");
-      int i= 0;
-      while (i <= 400)
-        {
         voltage();
-        i++;
-        delay(5);
-        }
         if (Voltage >= 13)
         {
           EngineStarted = true;
@@ -153,27 +163,14 @@ void StartEngine() {
           Serial.println("Engine Not Started");
         }
       }
-
-
+    //////////////ENGINE STOP
+    //PRESS SWITCH
     else if(lastSteadyState == HIGH && currentState == LOW && EngineStarted){
       IgnitionOFFduringStart(HIGH);
       IgnitionONduringStart(HIGH);
       EngineStarted = false;
       IgnitionStarted = false;
       Serial.println("Engine Stop");
-      }
-
-
-    else if(lastSteadyState == HIGH && currentState == LOW &&!IgnitionStarted && !EngineStarted){
-      Serial.println("Ignition Starting...");
-      IgnitionOFFduringStart(LOW);
-      IgnitionONduringStart(LOW);
-      flowEngine = true;
-      }
-    else if(lastSteadyState == LOW && currentState == HIGH &&!IgnitionStarted && !EngineStarted &&flowEngine){
-      IgnitionStarted = true;
-      flowEngine = false;
-      Serial.println("Ignition Started");
       }
 
 
