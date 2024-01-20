@@ -15,5 +15,14 @@ iPhone:
 When IOS is enabling with continuity service, it will always sending BLE advertising to let other IOS device to know. But the Bluetooth MAC Address is random and changed every 15 minutes.
 With my another project, you can decode the random address and determined if this random address belongs to your phone.
 
+# Get IRK of your iPhone
+If the IRK of an IOS device is known, the random Bluetooth address can be determined if it belongs to this device.
+
+Use an ESP32 board and download with “esp32_get_irk” project and built to esp32. It will start a BLE service.
+
+Use your iPhone install with “LightBlue” APP, find the “ESP_BLE_SECURITY” service, and connect it, the IRK will be print out.
+![image](https://github.com/Fiftiz/KeyLess-Car/assets/51287497/75a2ad95-5e8d-4e47-abc9-2e1615555771)
+
+
 # Hardware used:
 iPhone; ESP32 Board
