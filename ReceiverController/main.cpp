@@ -19,6 +19,7 @@
 #include "irk.h"
 #include <relay.h>
 #include <sensor.h>
+#include <OneButton.h>
 
 ///////////////////
 //Variable Server//
@@ -39,10 +40,16 @@ uint8_t irk[IRK_LIST_NUMBER][ESP_BT_OCTET16_LEN]= {
 };
 //Var bool on the StartEngine function
 bool EngineStarted = false;
-bool flowEngine = false;
 bool IgnitionStarted = false;
-//Activation Lock UNlock function
+bool AccyStarted = false;
+//Activation Lock Unlock function
 bool autoLockUnlock = false;
+//Blink Engine Switch led function
+bool BlinkSwitchLed = false;
+
+#define PIN_INPUT 21 // 21 + GND
+OneButton button(PIN_INPUT, true);
+unsigned long pressStartTime;
 
 // Service et caractéristique Bluetooth personnalisés
 BLEServer* pServer = NULL;
@@ -180,8 +187,9 @@ if (!IphoneDetect && autoLockUnlock) {
             pCharacteristic->notify();
             LockRelay();
             carOpen = false;
-            //IgnitionOFFduringStart(HIGH);
-            //IgnitionONduringStart(HIGH);
+            //Ignition3(HIGH);
+            //Accy(HIGH);
+            //Ignition1(HIGH);
             //IgnitionStarted = false;
             delay(2000);
         }
@@ -196,8 +204,9 @@ if (!IphoneDetect && autoLockUnlock) {
             pCharacteristic->notify();
             UnLockRelay();
             carOpen = true;
-            //IgnitionOFFduringStart(LOW);
-            //IgnitionONduringStart(LOW);
+            //Ignition3(LOW);
+            //Accy(LOW);
+            //Ignition1(LOW);
             //IgnitionStarted = true;
             //Serial.println("Ignition Start");
             delay(2000);
@@ -285,6 +294,122 @@ class MyAutoCharacteristicCallbacks: public BLECharacteristicCallbacks
 //BLUETOOTH SERVER//
 ////////////////////
 
+//////////
+//SWITCH//
+//////////
+void IRAM_ATTR checkTicks() {
+  // include all buttons here to be checked
+  // link the xxxclick functions to be called on xxxclick event.
+  button.tick(); // just call tick() to check the state.
+}
+// this function will be called when the button was pressed 1 time only.
+void singleClick() {
+  Serial.println("singleClick() detected.");
+  if(!IgnitionStarted && !EngineStarted){
+      Serial.println("Ignition Starting...");
+      BlinkSwitchLed = true;
+      Ignition3(HIGH);
+      Accy(HIGH);
+      Ignition1(HIGH);
+      IgnitionStarted = true;
+      Serial.println("Ignition Started");
+      }
+  else if(EngineStarted){
+      Ignition3(LOW);
+      Accy(LOW);
+      Ignition1(LOW);
+      EngineStarted = false;
+      IgnitionStarted = false;
+      engineSwithLed(0);
+      Serial.println("Engine Stop");
+      }
+} // singleClick
+
+
+// this function will be called when the button was pressed 2 times in a short timeframe.
+void doubleClick() {
+  BlinkSwitchLed = false;
+  Serial.println("doubleClick() detected.");
+  Ignition3(LOW);
+  Accy(LOW);
+  Ignition1(LOW);
+  EngineStarted = false;
+  IgnitionStarted = false;
+  engineSwithLed(0);
+  Serial.println("Engine/Ignition Stop");
+} // doubleClick
+
+
+// this function will be called when the button was pressed multiple times in a short timeframe.
+void multiClick() {
+  int n = button.getNumberClicks();
+  if (n == 3) {
+    Serial.println("tripleClick detected.");
+    Accy(HIGH);
+    BlinkSwitchLed = true;
+    AccyStarted = true;
+  } else if (n == 4) {
+    Serial.println("quadrupleClick detected.");
+  } else if (n == 5) {
+    Serial.println("quintupleClick detected.");
+    ESP.restart();
+  } else {
+    Serial.print("multiClick(");
+    Serial.print(n);
+    Serial.println(") detected.");
+  }
+} // multiClick
+
+
+// this function will be called when the button was held down for 1 second or more.
+void pressStart() {
+  Serial.println("pressStart()");
+  pressStartTime = millis() - 500; // as set in setPressMs()
+  if(IgnitionStarted && !EngineStarted){
+    BlinkSwitchLed = false;
+    Serial.println("Starting Engine...");
+    Ignition3(LOW);
+    Accy(LOW);
+    delay(500);
+    Starter(HIGH);
+    engineSwithLed(1);
+  }
+} // pressStart()
+
+
+// this function will be called when the button was released after a long hold.
+void pressStop() {
+  Serial.print("pressStop(");
+  Serial.print(millis() - pressStartTime);
+  Serial.println(") detected.");
+  if(IgnitionStarted && !EngineStarted){
+    voltage();
+    if (Voltage >= 13)
+    {
+      Starter(LOW);
+      delay(500);
+      Ignition3(HIGH);
+      Accy(HIGH);
+      EngineStarted = true;
+      Serial.println("Engine Started");
+    }
+    if (Voltage < 13)
+    {
+      BlinkSwitchLed = true;
+      Starter(LOW);
+      delay(500);
+      Ignition3(HIGH);
+      Accy(HIGH);
+      EngineStarted = false;
+
+      Serial.println("Engine Not Started");
+    }
+  }
+} // pressStop()
+//////////
+//SWITCH//
+//////////
+
 
 ////////////////////
 //TASK ON CORE [0]//
@@ -302,7 +427,6 @@ void Task1Scan(void * pvParameters){
     BleDataCheckTask();
     IphoneDetectFunc();
     //voltage();
-    //Serial.print("Voltage: ");
     //Serial.println(Voltage);
     } 
   }
@@ -310,7 +434,6 @@ void Task1Scan(void * pvParameters){
 ////////////////////
 //TASK ON CORE [0]//
 ////////////////////
-
 
 void setup() {
   Serial.begin(115200);
@@ -320,6 +443,22 @@ void setup() {
   initPosition();
 
   initpinsensor();
+  
+  //If retart, check voltage to keep relay ON
+  voltage();
+  Serial.print("Voltage: ");
+  Serial.println(Voltage);
+  checkEngineStart();
+
+  // Declare interrupt and switch function
+  attachInterrupt(digitalPinToInterrupt(PIN_INPUT), checkTicks, CHANGE);
+  button.attachClick(singleClick);
+  button.attachDoubleClick(doubleClick);
+  button.attachMultiClick(multiClick);
+  button.setPressMs(500); // that is the time when LongPressStart is called
+  button.attachLongPressStart(pressStart);
+  button.attachLongPressStop(pressStop);
+
   // Underclock CPU to Energize save
   //setCpuFrequencyMhz(80);
   // Initialise le BLE
@@ -373,15 +512,6 @@ void setup() {
   bleSecurity();
   Serial.println("Bluetooth Server ok");
 
-
-  voltage();
-  Serial.print("Voltage: ");
-  Serial.println(Voltage);
-  checkEngineStart();
-
-
-  delay(2000);
-
     //------------------------TASK TO START ENGINE------------------------
   xTaskCreatePinnedToCore(
                   Task1Scan,   /* Task function. */
@@ -391,12 +521,13 @@ void setup() {
                   1,           /* priority of the task */
                   &Task1,      /* Task handle to keep track of created task */
                   0);          /* pin task to core 0 */                  
-  delay(500);
  
 }
 
 
 void loop() {
-  // Start Engine
-  StartEngine();
+  button.tick();
+  if (BlinkSwitchLed == true){engineSwithLed(2);}
+  AutoShutdownAccyIgn();
+  delay(10);
 }

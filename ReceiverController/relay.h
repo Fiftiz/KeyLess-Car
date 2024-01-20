@@ -16,10 +16,12 @@
 
 void initPin();
 void initPosition();
-void StartEngine();
 void UnLockRelay();
 void LockRelay();
-void IgnitionOFFduringStart(uint8_t value);
-void IgnitionONduringStart(uint8_t value);
+void Starter(uint8_t value);
+void Ignition3(uint8_t value);
+void Ignition1(uint8_t value);
+void Accy(uint8_t value);
+void engineSwithLed(int value);
 
 #endif

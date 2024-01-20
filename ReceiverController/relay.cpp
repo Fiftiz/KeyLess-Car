@@ -12,38 +12,18 @@
 
 #include <Arduino.h>
 #include <relay.h>
-#include <sensor.h>
 
-//Relai 30A de demarrage
-const int startSwitchPin = 21; //BOUTON SUR PIN21, Autre fil sur GND en pullup
-int startSwitchState = 0;
 const int relayIGN3 = 14;        //Sur PIN14
 const int relayAccy = 27;        //Sur PIN27
 const int relayIGN1 = 26;        //Sur PIN26
 const int relayStart = 25;     //Sur PIN25
 
-extern bool EngineStarted;
-extern bool flowEngine;
-extern bool IgnitionStarted;
-
 // Relai lock et unlock
 const int relayUnlock = 32;    //Sur PIN32
-const int relayLock = 33;      //Sur PIN 27
+const int relayLock = 33;      //Sur PIN33
 
-extern float Voltage;
-
-
-#define DEBOUNCE_TIME  50 // the debounce time in millisecond, increase this time if it still chatters
-// Variables will change:
-int lastSteadyState = LOW;       // the previous steady state from the input pin
-int lastFlickerableState = LOW;  // the previous flickerable state from the input pin
-int currentState;
-// the following variables are unsigned longs because the time, measured in
-// milliseconds, will quickly become a bigger number than can be stored in an int.
-unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
-
-
-
+//Led  Engine Switch
+const int switchEngineLed = 19;
 
 void initPin(){  
     pinMode(relayLock, OUTPUT);
@@ -54,19 +34,17 @@ void initPin(){
     pinMode(relayIGN1, OUTPUT);
     pinMode(relayStart, OUTPUT);
 
-    pinMode(startSwitchPin, INPUT_PULLUP);
+    pinMode(switchEngineLed, OUTPUT);
 };
 
 void initPosition(){  
     digitalWrite(relayLock, HIGH);
     digitalWrite(relayUnlock, HIGH);
 
-    digitalWrite(relayIGN3, HIGH);
-    digitalWrite(relayAccy, HIGH);
-    digitalWrite(relayIGN1, HIGH);
-    digitalWrite(relayStart, HIGH);
+    digitalWrite(switchEngineLed, HIGH);
 };
-
+//////////////////////////////////////
+////////RELAY LOCK UNLOCK/////////////
 //////////////////////////////////////
 void UnLockRelay() {
     digitalWrite(relayUnlock, LOW);
@@ -85,96 +63,53 @@ void LockRelay() {
     Serial.println("### Lock ###");
 
 };
-//////////////////////////////////////
-void IgnitionOFFduringStart(uint8_t value) {
+////////////////////////////////////////////
+///////////IGN + ACCY + STARTER/////////////
+////////////////////////////////////////////
+void Ignition3(uint8_t value) {
   digitalWrite(relayIGN3, value);
-  digitalWrite(relayAccy, value);
-  if (value == LOW) {
-    Serial.println("IGN3 and ACCY: ON");
-  } else {Serial.println("IGN3 and ACCY: OFF");}
+  if (value == HIGH) {
+    Serial.println("IGN3: ON");
+  } else {Serial.println("IGN3: OFF");}
 };
 
-void IgnitionONduringStart(uint8_t value) {
+void Accy(uint8_t value) {
+  digitalWrite(relayAccy, value);
+  if (value == HIGH) {
+    Serial.println("ACCY: ON");
+  } else {Serial.println("ACCY: OFF");}
+};
+
+void Ignition1(uint8_t value) {
   digitalWrite(relayIGN1, value);
-  if (value == LOW) {
+  if (value == HIGH) {
     Serial.println("IGN1: ON");
   } else {Serial.println("IGN1: OFF");}
 };
 
-
-
-void StartEngine() {
-   // read the state of the switch/button:
-  currentState = digitalRead(startSwitchPin);
-
-  // check to see if you just pressed the button
-  // (i.e. the input went from LOW to HIGH), and you've waited long enough
-  // since the last press to ignore any noise:
-
-  // If the switch/button changed, due to noise or pressing:
-  if (currentState != lastFlickerableState) {
-    // reset the debouncing timer
-    lastDebounceTime = millis();
-    // save the the last flickerable state
-    lastFlickerableState = currentState;
-  }
-
-  if ((millis() - lastDebounceTime) > DEBOUNCE_TIME) {
-    // whatever the reading is at, it's been there for longer than the debounce
-    // delay, so take it as the actual current state:
-
-    // if the button state has changed:
-
-    //////////////IGNITION ON
-    //PRESS SWITCH
-    if(lastSteadyState == HIGH && currentState == LOW &&!IgnitionStarted && !EngineStarted){
-      Serial.println("Ignition Starting...");
-      IgnitionOFFduringStart(LOW);
-      IgnitionONduringStart(LOW);
-      flowEngine = true;
-      }
-    //RELEASE SWITCH
-    else if(lastSteadyState == LOW && currentState == HIGH &&!IgnitionStarted && !EngineStarted &&flowEngine){
-      IgnitionStarted = true;
-      flowEngine = false;
-      Serial.println("Ignition Started");
-      }
-    //////////////ENGINE START
-    //PRESS SWITCH
-    else if(lastSteadyState == HIGH && currentState == LOW && IgnitionStarted && !EngineStarted){
-      Serial.println("Starting Engine...");
-      IgnitionOFFduringStart(HIGH);
-      delay(500);
-      digitalWrite(relayStart, LOW);
-      }
-    //RELEASE SWITCH
-    else if(lastSteadyState == LOW && currentState == HIGH && IgnitionStarted && !EngineStarted){
-      digitalWrite(relayStart, HIGH);
-      delay(500);
-      IgnitionOFFduringStart(LOW);
-        voltage();
-        if (Voltage >= 13)
-        {
-          EngineStarted = true;
-          Serial.println("Engine Started");
-        }
-        else {
-          EngineStarted = false;
-          Serial.println("Engine Not Started");
-        }
-      }
-    //////////////ENGINE STOP
-    //PRESS SWITCH
-    else if(lastSteadyState == HIGH && currentState == LOW && EngineStarted){
-      IgnitionOFFduringStart(HIGH);
-      IgnitionONduringStart(HIGH);
-      EngineStarted = false;
-      IgnitionStarted = false;
-      Serial.println("Engine Stop");
-      }
-
-
-    // save the the last steady state
-    lastSteadyState = currentState;
-  }
+void Starter(uint8_t value) {
+  digitalWrite(relayStart, value);
+  if (value == HIGH) {
+    Serial.println("STARTER : ON");
+  } else {Serial.println("STARTER: OFF");}
 };
+//////////////////////////////////////
+////////LED ENGINE SWITCH/////////////
+//////////////////////////////////////
+void engineSwithLed(int value) {
+    if (value == 0) {
+    Serial.println("Engine Switch Led : OFF");
+    digitalWrite(switchEngineLed, HIGH);
+    }
+    if (value == 1) {
+    Serial.println("Engine Switch Led : ON");
+    digitalWrite(switchEngineLed, LOW);
+    } 
+    if (value == 2) {
+    digitalWrite(switchEngineLed, (millis() / 500) % 2);
+    }
+};
+
+//////////////////////////////////////
+////////LED ENGINE SWITCH/////////////
+//////////////////////////////////////
