@@ -197,20 +197,20 @@ cursor: pointer;
 .paramname{
   color: #ffA500;
   position:absolute;
-  margin-left: 20px;
+  margin-left: 10px;
   margin-top: -10px;
 }
 
 .paramnbat{
   color: #ffA500;
   position:absolute;
-  margin-left: 20px;
+  margin-left: 10px;
 }
 
 .descriptparam{
   color: white;
   position:absolute;
-  margin-left: 20px;
+  margin-left: 10px;
   padding-top : 12px;
   font-size: 11px;
 }
