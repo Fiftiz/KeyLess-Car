@@ -10,7 +10,7 @@
 <body class="w3-animate-opacity">
 <div id="contenu">
     <div class="content2">
-        <img onclick="loadPage('index.html')" src="retour.png"  style="width: 25px; position: fixed; top: 25px; left: 20px ;">
+        <img onclick="goBack()" src="retour.png"  style="width: 25px; position: fixed; top: 25px; left: 20px ;">
         <p style="color: white">Auto Lock/Unlock</p>
         <label class="switch" for="checkboxAuto">
             <input type="checkbox" id="checkboxAuto" />
@@ -25,6 +25,11 @@
         </label>
     </div>
 </div>
+<script>
+    function goBack() {
+        window.history.back();
+    }
+</script>
 </body>
 
 </html>
