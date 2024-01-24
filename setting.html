@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" type="image/png" href="">
     <link rel="stylesheet" type="text/css" href="style.css">
+    <script type="text/javascript" src="jquery-3.7.1.min.js"></script>
 </head>
 <body class="w3-animate-opacity">
-<!--<div class="topnav">
+<div id="contenu">
+    <div class="topnav">
         <h1>PARAMETRES</h1>
-        <a href="index.html">
-            <img src="retour.png" style="width: 25px; position: fixed; top: 25px; left: 20px ;">
-        </a>
-    </div> -->
+        <img onclick="changerPage('index.html')" src="retour.png"  style="width: 25px; position: fixed; top: 25px; left: 20px ;">
+    </div>
     <div class="content2">
         <p style="color: white">Auto Lock/Unlock</p>
         <label class="switch" for="checkboxAuto">
@@ -27,6 +27,8 @@
             <div class="slider round"></div>
         </label>
     </div>
+</div>
+    <script src="script.js"></script>
 </body>
 
 </html>
