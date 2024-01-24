@@ -48,11 +48,6 @@ button {
     width: 120px;
 }
 
-.gray-label { 
-    color: #bebebe; 
-    font-size: 1rem; 
-}
-
 .footer {
     position:absolute;
     text-align: center;
@@ -106,6 +101,7 @@ button {
     height: 20px;
     position: relative;
     width: 40px;
+    left: 80px;
   }
   
   .switch input {
@@ -162,16 +158,33 @@ button {
     transform: translateY(100%);
 }
 
-  #settings-btn {
+#settings-btn {
     position: fixed;
-    bottom: 20px;
-    right: 20px;
-    padding: 10px 20px;
-    color: #fff;
-    border: none;
-    cursor: pointer;
 }
 
-#settings-btn:focus {
-  outline: none;
+#settings-btn:hover {
+  cursor: pointer;
+}
+
+#settings-return {
+  position: fixed;
+}
+
+#settings-return:hover {
+cursor: pointer;
+}
+
+.icone {
+   width: 25px;
+   position: fixed;
+   top: 16px;
+   right:
+   15px ;
+  }
+
+.card{
+  border-radius: 15px;
+  background-color: #1F1F1F;
+  padding: 10px 10px 10px 10px;
+  margin: 10px 40px 0 40px;
 }
