@@ -25,9 +25,14 @@ body {
     text-align: center;
 }
 .content2 {
-  padding : 10px 30px 30px 30px;
-  height: 100%;
-  text-align: center;
+  padding : 10px 20px 30px 20px;
+  height: 55%;
+  text-align: right;
+}
+.content3 {
+  padding : 10px 20px 30px 20px;
+  height: 20%;
+  text-align: right;
 }
 button {
     color: white;
@@ -101,7 +106,7 @@ button {
     height: 20px;
     position: relative;
     width: 40px;
-    left: 80px;
+    right: 20px;
   }
   
   .switch input {
@@ -185,6 +190,32 @@ cursor: pointer;
 .card{
   border-radius: 15px;
   background-color: #1F1F1F;
-  padding: 10px 10px 10px 10px;
-  margin: 10px 40px 0 40px;
+  padding: 15px 15px 15px 15px;
+  margin: 20px 0 0 0;
+}
+
+.paramname{
+  color: #ffA500;
+  position:absolute;
+  margin-left: 20px;
+  margin-top: -10px;
+}
+
+.paramnbat{
+  color: #ffA500;
+  position:absolute;
+  margin-left: 20px;
+}
+
+.descriptparam{
+  color: white;
+  position:absolute;
+  margin-left: 20px;
+  padding-top : 12px;
+  font-size: 11px;
+}
+
+.voltage{
+  color: white;
+  margin-left: 150px;
 }

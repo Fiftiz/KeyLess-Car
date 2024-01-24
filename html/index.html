@@ -58,7 +58,8 @@
         </div>
         <div class="content2">
             <div class="card">
-            <div style="color: #ffA500;position:absolute;margin-left:30px;">Auto Lock/Unlock :</div>
+            <div class="paramname">Auto Lock / Unlock :</div>
+            <div class="descriptparam">Detect your phone and lock or unlock door.</div>
             <label class="switch" for="checkboxAuto">
                 <input type="checkbox" id="checkboxAuto" />
                 <div class="slider round"></div>
@@ -66,7 +67,8 @@
             </div>
 
             <div class="card">
-            <div style="color: #ffA500;position:absolute;margin-left:30px;">Auto Lock Run :</div>
+            <div class="paramname">Auto Lock Run :</div>
+            <div class="descriptparam">Closed Doors when car drives.</div>
             <label class="switch" for="checkboxAutoLockRun">
                 <input type="checkbox" id="checkboxAutoLockRun" />
                 <div class="slider round"></div>
@@ -74,11 +76,30 @@
             </div>
 
             <div class="card">
-            <div style="color: #ffA500;position:absolute;margin-left:30px;">Sleep Mode :</div>
+            <div class="paramname">Sleep Mode :</div>
+            <div class="descriptparam">When no activity, processor frequency is lower.</div>
             <label class="switch" for="checkboxSleepMode">
                 <input type="checkbox" id="checkboxSleepMode" />
                 <div class="slider round"></div>
             </label>
+            </div>
+
+            <div class="card">
+                <div class="paramname" style="color: #880015!important;">Diag Mode :</div>
+                <div class="descriptparam">Launch Diag Mode.</div>
+                <label class="switch" for="checkboxDiag">
+                    <input type="checkbox" id="checkboxDiag" />
+                    <div class="slider round"></div>
+                </label>
+            </div>
+
+
+
+        </div>
+        <div class="content3">
+            <div class="card">
+                <div class="paramnbat">Battery :</div>
+                <div  class="voltage"><span id="voltage">0.00</span> V</div>
             </div>
         </div>
     </div>
