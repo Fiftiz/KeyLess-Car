@@ -258,3 +258,19 @@
             writeOnAutoCharacteristic(0);
         }
     }
+
+    function loadPage(PageName) {
+            // Utilisation de jQuery pour effectuer une requête AJAX
+            $.ajax({
+                url: PageName,  // Spécifiez l'URL de la nouvelle page ici
+                type: 'GET',
+                success: function (data) {
+                    // Mettez à jour le contenu avec la nouvelle page sans recharger la page entière
+                    $('#contenu').html(data);
+                },
+                error: function () {
+                    alert('Erreur lors du chargement de la nouvelle page.');
+                }
+            });
+    }
+ 
