@@ -19,6 +19,12 @@ body {
     height: 100%;
 }
 
+hr{
+  border: 1px solid #303030;
+  width: 99%;
+  color: #303030;
+}
+
 .content {
     padding: 100px;
     height: 100%;
@@ -26,12 +32,12 @@ body {
 }
 .content2 {
   padding : 10px 20px 30px 20px;
-  height: 55%;
   text-align: right;
 }
 .content3 {
+  flex: 1;
+  position:relative;
   padding : 10px 20px 30px 20px;
-  height: 20%;
   text-align: right;
 }
 button {
@@ -153,6 +159,8 @@ button {
 
 
   #setting {
+    display: flex;
+    flex-direction: column;
     position: absolute;
     bottom: 0;
     left: 0;
@@ -190,15 +198,18 @@ cursor: pointer;
 .card{
   border-radius: 15px;
   background-color: #1F1F1F;
-  padding: 15px 15px 15px 15px;
+  padding:5px 0px 5px 0px;
   margin: 20px 0 0 0;
+}
+.card2{
+  margin: 15px 15px 15px 15px;
 }
 
 .paramname{
   color: #ffA500;
   position:absolute;
   margin-left: 10px;
-  margin-top: -10px;
+  margin-top: -8px;
 }
 
 .paramnbat{
