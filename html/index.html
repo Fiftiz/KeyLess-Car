@@ -30,7 +30,7 @@
 </head>
 <body class="w3-animate-opacity">
     <div class="topnav">
-        <h1>KEYLESS CAR</h1>
+        <h1>KEYLESS CORVETTE</h1>
         <img id="settings-btn" src="setting.png" class="icone">
         <!--<a href="setting.html">
             <img src="setting.png" style="width: 25px; position: fixed; top: 25px; right: 20px ;">
@@ -77,15 +77,6 @@
             </div>
             <hr>
             <div class="card2">
-            <div class="paramname">Sleep Mode :</div>
-            <div class="descriptparam">When no activity, processor frequency is lower.</div>
-            <label class="switch" for="checkboxSleepMode">
-                <input type="checkbox" id="checkboxSleepMode" />
-                <div class="slider round"></div>
-            </label>
-            </div>
-            <hr>
-            <div class="card2">
                 <div class="paramname" style="color: #880015!important;">Diag Mode :</div>
                 <div class="descriptparam">Launch Diag Mode.</div>
                 <label class="switch" for="checkboxDiag">
@@ -93,11 +84,18 @@
                     <div class="slider round"></div>
                 </label>
             </div>
+            <hr>
+            <div class="card2" style="margin-top: -2px;">
+                <div class="paramname" style="margin-top: 15px;">Password :</div>
+                <div class="descriptparam" style="margin-top: 22px;">Change your bluetooth password</div>
+                <input type="number" id="Passinput">
+                <button onclick="writePinCharact()">OK</button>
+            </div>
         </div>
 
 
 
-        </div>
+       </div>
         <div class="content3">
             <div class="card"  style="padding: 20px 35px 20px 15px!important;">
                 <div class="paramnbat">Battery :</div>
