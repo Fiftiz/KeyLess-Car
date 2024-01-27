@@ -28,7 +28,7 @@ If the IRK of an IOS device is known, the random Bluetooth address can be determ
 iPhone; ESP32 Board
 
 
-# MANUAL
+# Manual
 
 Switch Click :
 
@@ -57,6 +57,7 @@ OPTION :
 - Auto Proximity Lock / Unlock
 - Sleep Mode
 - Auto Shutdown ACCY and IGN
+
 
    
   
