@@ -22,6 +22,10 @@ void Starter(uint8_t value);
 void Ignition3(uint8_t value);
 void Ignition1(uint8_t value);
 void Accy(uint8_t value);
-void engineSwithLed(int value);
+void engineSwitchLed(int value);
+void diagMode(uint8_t value);
+
+
+extern void NotifUnlockFunc(int value);
 
 #endif

@@ -18,6 +18,10 @@ void voltage();
 void initpinsensor();
 void checkEngineStart();
 float getVPP();
+void AutoLockRun();
 void AutoShutdownAccyIgn();
+void sleepModeFunc();
+void SpeedoFunc();
+void RpmFunc();
 
 #endif

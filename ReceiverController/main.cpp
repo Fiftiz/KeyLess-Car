@@ -15,6 +15,7 @@
 #include <BLEServer.h>
 #include <BLE2902.h>
 #include <BLEAdvertising.h>
+#include <Preferences.h>
 
 #include "irk.h"
 #include <relay.h>
@@ -28,33 +29,48 @@
 #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 #define AUTOUNLOCK_CHARACTERISTIC_UUID "beb5483f-36e2-4688-b7f5-ea07361b26a8"
-#define PASSKEY 111111
+#define AUTOLOCKRUN_CHARACTERISTIC_UUID "beb5483a-36e3-4688-b7f5-ea07361b26a8"
+#define DIAGMODE_CHARACTERISTIC_UUID "beb5483c-36e5-4688-b7f5-ea07361b26a8"
+#define PIN_CHARACTERISTIC_UUID "beb5483d-36e6-4687-b7f5-ea07361b26a8"
+
 
 #define IRK_LIST_NUMBER 2
 const char * IrkListName[IRK_LIST_NUMBER] = {"A","B"};
 uint8_t irk[IRK_LIST_NUMBER][ESP_BT_OCTET16_LEN]= {
     // IRK of A
-    {0xD2,0x00,0xA0,0x8F,0x00,0x03,0x81,0x5A,0x00,0xA2,0xE4,0xE6,0x85,0x57,0xAD,0x35},
+    {0xD2,0x92,0xA0,0x8F,0xF0,0x03,0x81,0x5A,0xD6,0xA2,0xE4,0xE6,0x85,0x57,0xAD,0x35},
     // IRK of B
-    {0x85,0x00,0x90,0x00,0x9C,0x00,0xBC,0xE7,0xFE,0xEE,0x6B,0x00,0x5E,0x62,0xE9,0x75}
+    {0x85,0x89,0x90,0xBE,0x9C,0xBE,0xBC,0xE7,0xFE,0xEE,0x6B,0xCE,0x5E,0x62,0xE9,0x75}
 };
+
+// Declared Pref
+Preferences preferences;
+
+//Var to Bluetooth Password
+int PASSKEY;
+
+// Button for engine start switch
+#define PIN_INPUT 19 // 19 + GND
+OneButton button(PIN_INPUT, true);
+unsigned long pressStartTime;
+unsigned long pressTime;
+//Blink Engine Switch led function
+bool BlinkSwitchLed = false;
+
+
 //Var bool on the StartEngine function
 bool EngineStarted = false;
 bool IgnitionStarted = false;
 bool AccyStarted = false;
 //Activation Lock Unlock function
 bool autoLockUnlock = false;
-//Blink Engine Switch led function
-bool BlinkSwitchLed = false;
+//Activation Lock Run function
+bool autoLockRun = false;
+bool StateAutoLockRun = false;
+//Diag mode function
+bool currentStateDiag = false;
 
-#define PIN_INPUT 21 // 21 + GND
-OneButton button(PIN_INPUT, true);
-unsigned long pressStartTime;
 
-// Service et caractéristique Bluetooth personnalisés
-BLEServer* pServer = NULL;
-BLECharacteristic* pCharacteristic = NULL;
-BLECharacteristic* autoCharacteristic = NULL;
 // Range to RSSI
 int RSSI_THRESHOLD_OPEN = -70;
 int RSSI_THRESHOLD_CLOSED = -90;
@@ -63,14 +79,22 @@ bool IphoneDetect = false;
 bool proximityDeadZone = false;
 bool carOpen = false;
 bool deviceConnected = false;
+
 //Val Voltage
 float Voltage;
 
 
+// Service et caractéristique Bluetooth personnalisés
+BLEServer* pServer = NULL;
+BLECharacteristic* unlockCharacteristic = NULL;
+BLECharacteristic* autoCharacteristic = NULL;
+BLECharacteristic* autoRunCharacteristic = NULL;
+BLECharacteristic* DiagCharacteristic = NULL;
+BLECharacteristic* PinCharacteristic = NULL;
+
 ///////////////////
 //Variable Server//
 ///////////////////
-
 
 /////////////////////
 //BLE Secure Server//
@@ -176,42 +200,45 @@ void BleDataCheckTask() {
     }
 }
 
+
+
 void IphoneDetectFunc(){
-if (!IphoneDetect && autoLockUnlock) {
+  if (autoLockUnlock && !EngineStarted)
+  {
+    if (!IphoneDetect) {
         if (!carOpen) {
             Serial.println("Waiting to Detect Iphone");
         }
-        if (carOpen && !proximityDeadZone && !EngineStarted) {
+        if (carOpen && !proximityDeadZone) {
             Serial.println("No iphone Detected, locking the car");
-            pCharacteristic->setValue("0");
-            pCharacteristic->notify();
             LockRelay();
-            carOpen = false;
-            //Ignition3(HIGH);
-            //Accy(HIGH);
-            //Ignition1(HIGH);
-            //IgnitionStarted = false;
             delay(2000);
         }
     }
-    if (IphoneDetect && autoLockUnlock) {
+    if (IphoneDetect) {
         if (carOpen) {
-            Serial.println("Awaiting... Car is open");
+            Serial.println("Already open");
         }
-        if (!carOpen && !EngineStarted){
+        if (!carOpen){
             Serial.println("iPhone(s) detected, unlocking the car");
-            pCharacteristic->setValue("1");
-            pCharacteristic->notify();
             UnLockRelay();
-            carOpen = true;
-            //Ignition3(LOW);
-            //Accy(LOW);
-            //Ignition1(LOW);
-            //IgnitionStarted = true;
-            //Serial.println("Ignition Start");
             delay(2000);
         }
     }
+  }
+}
+
+
+// BLE SETVALUE AND NOTIF FUNCTION
+void NotifUnlockFunc(int value){
+  if (value == 0)
+  {
+    unlockCharacteristic->setValue("0");
+  } else if (value == 1)
+  {
+    unlockCharacteristic->setValue("1");
+  }
+  unlockCharacteristic->notify();
 }
 
 ////////////////////////////
@@ -243,31 +270,26 @@ class MyServerCallbacks: public BLEServerCallbacks {
 
 
 // Write Lock Unlock Characteristics
-class MyCharacteristicCallbacks: public BLECharacteristicCallbacks
+class UnlockCharacteristicCbs: public BLECharacteristicCallbacks
 {
-  void onWrite(BLECharacteristic *pCharacteristic)
+  void onWrite(BLECharacteristic *unlockCharacteristic)
   {
-    std::string value = pCharacteristic->getValue();
+    std::string value = unlockCharacteristic->getValue();
 
     if (value.length() == 1) {
       int receivedValue = static_cast<int>(value[0]);
       if (receivedValue == 1) {
-        pCharacteristic->setValue("1");
-        carOpen = true;
         UnLockRelay();
       } else if (receivedValue == 0) {
-        pCharacteristic->setValue("0");
-        carOpen = false;
         LockRelay();
       }
-    pCharacteristic->notify();
     }
   }
 };
 
 
 // Write Activate Lock Unlock Characteristics
-class MyAutoCharacteristicCallbacks: public BLECharacteristicCallbacks
+class AutoCharacteristicCbs: public BLECharacteristicCallbacks
 {
   void onWrite(BLECharacteristic *autoCharacteristic)
   {
@@ -289,6 +311,71 @@ class MyAutoCharacteristicCallbacks: public BLECharacteristicCallbacks
   }
 };
 
+// Write Activate Auto Lock Run Characteristics
+class AutoRunCharacteristicCbs: public BLECharacteristicCallbacks
+{
+  void onWrite(BLECharacteristic *autoRunCharacteristic)
+  {
+    std::string value = autoRunCharacteristic->getValue();
+
+    if (value.length() == 1) {
+      int receivedValue = static_cast<int>(value[0]);
+      if (receivedValue == 1) {
+        autoRunCharacteristic->setValue("1");
+        autoLockRun = true;
+        Serial.println("### Auto Lock  Run activate ###");
+      } else if (receivedValue == 0) {
+        autoRunCharacteristic->setValue("0");
+        autoLockRun = false;
+        Serial.println("### Auto Lock Run deactivate ###");
+      }
+    autoRunCharacteristic->notify();
+    }
+  }
+};
+
+// Write Activate Diag Mode Characteristics
+class DiagCharacteristicCbs: public BLECharacteristicCallbacks
+{
+  void onWrite(BLECharacteristic *DiagCharacteristic)
+  {
+    std::string value = DiagCharacteristic->getValue();
+
+    if (value.length() == 1) {
+      int receivedValue = static_cast<int>(value[0]);
+      if (receivedValue == 1) {
+        diagMode(HIGH);
+        Serial.println("### DIAG MODE ON ###");
+      } else if (receivedValue == 0) {
+        diagMode(LOW);
+        Serial.println("### DIAG MODE OFF ###");
+      }
+    }
+  }
+};
+
+
+// Write to change bluetooth Password Characteristics
+class PinCharacteristicCbs: public BLECharacteristicCallbacks
+{
+  void onWrite(BLECharacteristic *PinCharacteristic)
+  {
+    std::string value = PinCharacteristic->getValue();
+
+    if (value.length() == 6) {
+        PASSKEY = atoi(value.c_str());
+        preferences.putUInt("PASSKEY", PASSKEY);
+        PinCharacteristic->setValue(PASSKEY);
+        Serial.print("PASS KEY CHANGE TO :");
+        Serial.println(PASSKEY);
+        PinCharacteristic->notify();
+        for (int i = 0; i < 10; i++) {  // Faire clignoter 10 fois so 4 secs
+          engineSwitchLed(3);
+        }
+        ESP.restart();
+    }
+  }
+};
 
 ////////////////////
 //BLUETOOTH SERVER//
@@ -302,9 +389,11 @@ void IRAM_ATTR checkTicks() {
   // link the xxxclick functions to be called on xxxclick event.
   button.tick(); // just call tick() to check the state.
 }
+
 // this function will be called when the button was pressed 1 time only.
 void singleClick() {
   Serial.println("singleClick() detected.");
+  
   if(!IgnitionStarted && !EngineStarted){
       Serial.println("Ignition Starting...");
       BlinkSwitchLed = true;
@@ -312,31 +401,52 @@ void singleClick() {
       Accy(HIGH);
       Ignition1(HIGH);
       IgnitionStarted = true;
+      AccyStarted = true;
       Serial.println("Ignition Started");
+      delay(500);
+      return;
       }
-  else if(EngineStarted){
+  if(IgnitionStarted){
       Ignition3(LOW);
       Accy(LOW);
       Ignition1(LOW);
       EngineStarted = false;
       IgnitionStarted = false;
-      engineSwithLed(0);
-      Serial.println("Engine Stop");
+      AccyStarted = false;
+      BlinkSwitchLed = false;
+      engineSwitchLed(0);
+      if (EngineStarted) {
+        Serial.println("Engine Stop");
+        if (carOpen == false) {
+          UnLockRelay();
+        }
+      }
+      else {Serial.println("Ignition/Accy Stop");}
+      delay(500);
+      return;
       }
 } // singleClick
 
 
 // this function will be called when the button was pressed 2 times in a short timeframe.
 void doubleClick() {
-  BlinkSwitchLed = false;
   Serial.println("doubleClick() detected.");
-  Ignition3(LOW);
-  Accy(LOW);
-  Ignition1(LOW);
-  EngineStarted = false;
-  IgnitionStarted = false;
-  engineSwithLed(0);
-  Serial.println("Engine/Ignition Stop");
+  if (!EngineStarted)
+  {
+    if (!AccyStarted)
+    {
+      Accy(HIGH);
+      BlinkSwitchLed = true;
+      AccyStarted = true;
+    }
+    else if (AccyStarted && !IgnitionStarted)
+    {
+      Accy(LOW);
+      BlinkSwitchLed = false;
+      engineSwitchLed(0);
+      AccyStarted = false;
+    }
+  }
 } // doubleClick
 
 
@@ -345,14 +455,18 @@ void multiClick() {
   int n = button.getNumberClicks();
   if (n == 3) {
     Serial.println("tripleClick detected.");
-    Accy(HIGH);
-    BlinkSwitchLed = true;
-    AccyStarted = true;
-  } else if (n == 4) {
-    Serial.println("quadrupleClick detected.");
-  } else if (n == 5) {
+  } if (n == 4) {
+    Serial.println("quadrupleClick detected.");  
+
+    if (currentStateDiag = false && !IgnitionStarted && !EngineStarted)
+    {
+      diagMode(HIGH);
+    } else {
+      diagMode(LOW);
+    } 
+
+  } if (n == 5) {
     Serial.println("quintupleClick detected.");
-    ESP.restart();
   } else {
     Serial.print("multiClick(");
     Serial.print(n);
@@ -364,47 +478,55 @@ void multiClick() {
 // this function will be called when the button was held down for 1 second or more.
 void pressStart() {
   Serial.println("pressStart()");
-  pressStartTime = millis() - 500; // as set in setPressMs()
+  pressStartTime = millis() - 800; // as set in setPressMs()
   if(IgnitionStarted && !EngineStarted){
     BlinkSwitchLed = false;
     Serial.println("Starting Engine...");
     Ignition3(LOW);
     Accy(LOW);
-    delay(500);
+    delay(250);
     Starter(HIGH);
-    engineSwithLed(1);
+    engineSwitchLed(1);
   }
+  
 } // pressStart()
 
 
 // this function will be called when the button was released after a long hold.
 void pressStop() {
+  pressTime = millis() - pressStartTime;
   Serial.print("pressStop(");
   Serial.print(millis() - pressStartTime);
   Serial.println(") detected.");
   if(IgnitionStarted && !EngineStarted){
+    Starter(LOW);
+    delay(250);
+    Starter(LOW);
+    Ignition3(HIGH);
+    Accy(HIGH);
     voltage();
-    if (Voltage >= 13)
+    if (Voltage >= 13.5)
     {
-      Starter(LOW);
-      delay(500);
-      Ignition3(HIGH);
-      Accy(HIGH);
       EngineStarted = true;
       Serial.println("Engine Started");
+      return;
     }
-    if (Voltage < 13)
+    if (Voltage < 13.5)
     {
       BlinkSwitchLed = true;
-      Starter(LOW);
-      delay(500);
-      Ignition3(HIGH);
-      Accy(HIGH);
       EngineStarted = false;
-
       Serial.println("Engine Not Started");
+      return;
     }
   }
+  if (pressTime >= 15000 && !IgnitionStarted && !EngineStarted)
+  {
+    for (int i = 0; i < 10; i++) {  // Faire clignoter 10 fois so 4 secs
+    engineSwitchLed(3);
+    }
+    ESP.restart();
+  }
+  
 } // pressStop()
 //////////
 //SWITCH//
@@ -426,9 +548,14 @@ void Task1Scan(void * pvParameters){
     proximityDeadZone = false; // Réinitialisez la variable avant chaque balayage
     BleDataCheckTask();
     IphoneDetectFunc();
-    //voltage();
-    //Serial.println(Voltage);
-    } 
+    if (deviceConnected)
+      {
+        voltage();
+        DiagCharacteristic->setValue(String(Voltage).c_str());
+        Serial.println(Voltage);
+        DiagCharacteristic->notify();
+      }
+    }
   }
 
 ////////////////////
@@ -444,18 +571,21 @@ void setup() {
 
   initpinsensor();
   
-  //If retart, check voltage to keep relay ON
+  //If Esp retart, check voltage to keep relay ON
   voltage();
   Serial.print("Voltage: ");
   Serial.println(Voltage);
   checkEngineStart();
+// Preference
+  preferences.begin("KeyLess-Car", false);
+  PASSKEY = preferences.getUInt("PASSKEY", 111111);
 
   // Declare interrupt and switch function
   attachInterrupt(digitalPinToInterrupt(PIN_INPUT), checkTicks, CHANGE);
   button.attachClick(singleClick);
   button.attachDoubleClick(doubleClick);
   button.attachMultiClick(multiClick);
-  button.setPressMs(500); // that is the time when LongPressStart is called
+  button.setPressMs(800); // that is the time when LongPressStart is called
   button.attachLongPressStart(pressStart);
   button.attachLongPressStop(pressStop);
 
@@ -470,36 +600,63 @@ void setup() {
    // Définit la Callback pour les connections
   pServer->setCallbacks(new MyServerCallbacks());
    // Create the BLE Service
-  BLEService *pService = pServer->createService(SERVICE_UUID);
+  BLEService *pService = pServer->createService(BLEUUID(SERVICE_UUID), 30, 0);
 
-    
   // Crée le caractéristique BLE
-  pCharacteristic = pService->createCharacteristic(
+  unlockCharacteristic = pService->createCharacteristic(
                                       CHARACTERISTIC_UUID,
                                       BLECharacteristic::PROPERTY_READ |
                                       BLECharacteristic::PROPERTY_WRITE |
-                                      BLECharacteristic::PROPERTY_NOTIFY |
-                                      BLECharacteristic::PROPERTY_INDICATE
+                                      BLECharacteristic::PROPERTY_NOTIFY
                   );
   autoCharacteristic = pService->createCharacteristic(
                                       AUTOUNLOCK_CHARACTERISTIC_UUID,
                                       BLECharacteristic::PROPERTY_READ |
                                       BLECharacteristic::PROPERTY_WRITE |
-                                      BLECharacteristic::PROPERTY_NOTIFY |
-                                      BLECharacteristic::PROPERTY_INDICATE
+                                      BLECharacteristic::PROPERTY_NOTIFY
+                  );
+  autoRunCharacteristic = pService->createCharacteristic(
+                                      AUTOLOCKRUN_CHARACTERISTIC_UUID,
+                                      BLECharacteristic::PROPERTY_READ |
+                                      BLECharacteristic::PROPERTY_WRITE |
+                                      BLECharacteristic::PROPERTY_NOTIFY
+                  );
+  DiagCharacteristic = pService->createCharacteristic(
+                                      DIAGMODE_CHARACTERISTIC_UUID,
+                                      BLECharacteristic::PROPERTY_READ |
+                                      BLECharacteristic::PROPERTY_WRITE |
+                                      BLECharacteristic::PROPERTY_NOTIFY
+                  );
+  PinCharacteristic = pService->createCharacteristic(
+                                      PIN_CHARACTERISTIC_UUID,
+                                      BLECharacteristic::PROPERTY_READ |
+                                      BLECharacteristic::PROPERTY_WRITE |
+                                      BLECharacteristic::PROPERTY_NOTIFY
                   );
   // Définit la Callback pour le securite
-  pCharacteristic->setAccessPermissions(ESP_GATT_PERM_READ_ENCRYPTED | ESP_GATT_PERM_WRITE_ENCRYPTED);
+  unlockCharacteristic->setAccessPermissions(ESP_GATT_PERM_READ_ENCRYPTED | ESP_GATT_PERM_WRITE_ENCRYPTED);
   autoCharacteristic->setAccessPermissions(ESP_GATT_PERM_READ_ENCRYPTED | ESP_GATT_PERM_WRITE_ENCRYPTED);
+  autoRunCharacteristic->setAccessPermissions(ESP_GATT_PERM_READ_ENCRYPTED | ESP_GATT_PERM_WRITE_ENCRYPTED);
+  DiagCharacteristic->setAccessPermissions(ESP_GATT_PERM_READ_ENCRYPTED | ESP_GATT_PERM_WRITE_ENCRYPTED);
+  PinCharacteristic->setAccessPermissions(ESP_GATT_PERM_READ_ENCRYPTED | ESP_GATT_PERM_WRITE_ENCRYPTED);
   // Définit la Callback pour le caractéristique
-  pCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
-  autoCharacteristic->setCallbacks(new MyAutoCharacteristicCallbacks());
+  unlockCharacteristic->setCallbacks(new UnlockCharacteristicCbs());
+  autoCharacteristic->setCallbacks(new AutoCharacteristicCbs());
+  autoRunCharacteristic->setCallbacks(new AutoRunCharacteristicCbs());
+  DiagCharacteristic->setCallbacks(new DiagCharacteristicCbs());
+  PinCharacteristic->setCallbacks(new PinCharacteristicCbs());
   // Définit la valeur initiale du caractéristique
-  pCharacteristic->setValue("0");
+  unlockCharacteristic->setValue("0");
   autoCharacteristic->setValue("0");
+  autoRunCharacteristic->setValue("0");
+  DiagCharacteristic->setValue(String(Voltage).c_str());
+  //PinCharacteristic->setValue(PASSKEY);
    // Create a BLE Descriptor
-  pCharacteristic->addDescriptor(new BLE2902());
+  unlockCharacteristic->addDescriptor(new BLE2902());
   autoCharacteristic->addDescriptor(new BLE2902());
+  autoRunCharacteristic->addDescriptor(new BLE2902());
+  DiagCharacteristic->addDescriptor(new BLE2902());
+  PinCharacteristic->addDescriptor(new BLE2902());
   // Démarre le service BLE
   pService->start();
   // Commence à diffuser le service BLE
@@ -520,14 +677,38 @@ void setup() {
                   NULL,        /* parameter of the task */
                   1,           /* priority of the task */
                   &Task1,      /* Task handle to keep track of created task */
-                  0);          /* pin task to core 0 */                  
- 
+                  0);          /* pin task to core 0 */             
+
 }
 
 
 void loop() {
+
   button.tick();
-  if (BlinkSwitchLed == true){engineSwithLed(2);}
-  AutoShutdownAccyIgn();
+  if (BlinkSwitchLed){engineSwitchLed(2);}
+
+// IF ENGINE STOP
+  if (!EngineStarted)
+  {
+    sleepModeFunc();
+    AutoShutdownAccyIgn();
+    //check if Engine run with key
+    if (Voltage >= 13.5 && !IgnitionStarted)
+    {
+      voltage();
+      checkEngineStart();
+    }
+    
+  }
+
+// IF ENGINE START 
+  if (EngineStarted)
+  {
+    if (carOpen && autoLockRun) {
+      AutoLockRun();
+    } 
+  }
+
+  
   delay(10);
 }
