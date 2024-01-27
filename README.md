@@ -40,7 +40,7 @@ Switch Click :
   
 - Triple Click : NA
   
-- Quadruple Click : Diag Mode Start
+- Quadruple Click : Diag Mode Start 
   
 - Long Press click (Led Switch ON) :
      - When Ignition start --> Launch Starter , IGN1 - ACCY Stop
@@ -48,6 +48,15 @@ Switch Click :
      - Stop Starter --> IGN1 - ACCY Start
      - If engine not start retourn to Ignition ON with Smooth Switch Led Blink
      - If engine start --> Led switch ON
+- If Ignition not start : 15 seconde on long Press switch , reboot Esp 32 (Fast blink Switch Led)
+
+
+OPTION :
+
+- Auto Lock Run
+- Auto Proximity Lock / Unlock
+- Sleep Mode
+- Auto Shutdown ACCY and IGN
 
    
   
