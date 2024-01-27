@@ -26,3 +26,28 @@ If the IRK of an IOS device is known, the random Bluetooth address can be determ
 
 # Hardware used:
 iPhone; ESP32 Board
+
+
+# MANUAL
+
+Switch Click :
+
+- One click (Smooth Switch Led Blink) :
+     - When Engine Stop : start IGN1 - IGN3 - ACCY
+     - When Ignition Start and Engine Stop : Stop IGN3 - IGN3 - ACCY --> So Engine Stop (Led Switch OFF)
+
+- Double click (Smooth Switch Led Blink) : Toggle ON / OFF ACCY
+  
+- Triple Click : NA
+  
+- Quadruple Click : Diag Mode Start
+  
+- Long Press click (Led Switch ON) :
+     - When Ignition start --> Launch Starter , IGN1 - ACCY Stop
+- Release Long Press click :
+     - Stop Starter --> IGN1 - ACCY Start
+     - If engine not start retourn to Ignition ON with Smooth Switch Led Blink
+     - If engine start --> Led switch ON
+
+   
+  
