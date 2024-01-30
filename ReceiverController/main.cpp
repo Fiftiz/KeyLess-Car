@@ -9,6 +9,29 @@
 
   ©2023 THIROUX Yannis, tous droits réservés.
 *********/
+
+/*********PIN
+Pin switch : 19 + GND
+Pin voltage sensor = 35
+Pin Speedometre = 34
+Pin Tachymeter = 39
+PIn Door Switch = 36
+
+Pin relay IGN3 = 14
+Pin relay Accy = 27
+Pin relay IGN1 = 26
+Pin relay Start = 25
+Pin diagMode = 12
+PIN Switch LED = 18
+
+Pin relay Unlock = 32
+Pin relay Lock = 33
+
+
+Pont diviseur de tension :
+Tachymeter de 12v à 3.36v --> R1 = 10000 Ohm - R2 = 3900 ohm
+Speedometer de 8v à 3.31v -->  R1 = 5100 Ohm - R2 = 3600 ohm
+*********/
 #include <Arduino.h>
 #include <BLEDevice.h>
 #include <BLEUtils.h>
@@ -154,17 +177,13 @@ void bleSecurity() {
 ////////////////////////////
 void BleDataCheckTask() {
     BLEScan *pBLEScan = BLEDevice::getScan();
-    BLEScanResults foundDevices = pBLEScan->start(5, false);  // Scan pendant 3 secondes
-
-    bool proximityOk = false;
-    bool proximityNok = false;
+    BLEScanResults foundDevices = pBLEScan->start(4, false);  // Scan pendant 3 secondes
 
     for (int i = 0; i < foundDevices.getCount(); i++) {
         BLEAdvertisedDevice device = foundDevices.getDevice(i);
 
         BLEAddress AdMac = device.getAddress();
         //printf("Check = %s\r\n", AdMac.toString().c_str());
-
 
         for (int j = 0; j < IRK_LIST_NUMBER; j++) {
             if (btm_ble_addr_resolvable((uint8_t *)AdMac.getNative(), irk[j])) {
@@ -177,54 +196,43 @@ void BleDataCheckTask() {
                 if (rssi >= RSSI_THRESHOLD_OPEN)
                 {
                     Serial.println("--> Device Proximity: Ok");
-                    proximityOk = true;
+                    IphoneDetect = true;
                 }
-                if (rssi < RSSI_THRESHOLD_OPEN && rssi > RSSI_THRESHOLD_CLOSED)
+                else if (rssi < RSSI_THRESHOLD_OPEN && rssi > RSSI_THRESHOLD_CLOSED)
                 {
                     Serial.println("--> Device Proximity:  Dead zone");
                     proximityDeadZone = true;
                 }
-                if (rssi <= RSSI_THRESHOLD_CLOSED)
+                else if (rssi <= RSSI_THRESHOLD_CLOSED)
                 {
                     Serial.println("--> Device Proximity: Nok");
-                    proximityNok = true;
                 }
             }
         }
     }
-    if (proximityOk) {
-        IphoneDetect = true;
-    }
-    if (proximityNok && !proximityOk && !proximityDeadZone) {
-        IphoneDetect = false;
-    }
 }
 
 
-
 void IphoneDetectFunc(){
-  if (autoLockUnlock && !EngineStarted)
+  if (autoLockUnlock)
   {
-    if (!IphoneDetect) {
-        if (!carOpen) {
-            Serial.println("Waiting to Detect Iphone");
-        }
-        if (carOpen && !proximityDeadZone) {
-            Serial.println("No iphone Detected, locking the car");
-            LockRelay();
-            delay(2000);
-        }
-    }
     if (IphoneDetect) {
-        if (carOpen) {
-            Serial.println("Already open");
-        }
         if (!carOpen){
             Serial.println("iPhone(s) detected, unlocking the car");
             UnLockRelay();
             delay(2000);
         }
+        else {Serial.println("Already open");}
     }
+    else if (!IphoneDetect) {
+        if (carOpen && !proximityDeadZone) {
+            Serial.println("No iphone Detected, locking the car");
+            LockRelay();
+            delay(2000);
+        }
+        else {Serial.println("Waiting to Detect Proximity Iphone");}
+    }
+    
   }
 }
 
@@ -417,9 +425,7 @@ void singleClick() {
       engineSwitchLed(0);
       if (EngineStarted) {
         Serial.println("Engine Stop");
-        if (carOpen == false) {
-          UnLockRelay();
-        }
+        if (carOpen == false) {UnLockRelay();}
       }
       else {Serial.println("Ignition/Accy Stop");}
       delay(500);
@@ -458,10 +464,11 @@ void multiClick() {
   } if (n == 4) {
     Serial.println("quadrupleClick detected.");  
 
-    if (currentStateDiag = false && !IgnitionStarted && !EngineStarted)
+    if (!currentStateDiag && !IgnitionStarted && !AccyStarted && !EngineStarted)
     {
       diagMode(HIGH);
-    } else {
+    } 
+    else if (!currentStateDiag) {
       diagMode(LOW);
     } 
 
@@ -504,14 +511,14 @@ void pressStop() {
     Starter(LOW);
     Ignition3(HIGH);
     Accy(HIGH);
-    voltage();
+    //voltage();
     if (Voltage >= 13.5)
     {
       EngineStarted = true;
       Serial.println("Engine Started");
       return;
     }
-    if (Voltage < 13.5)
+    else if (Voltage < 13.5)
     {
       BlinkSwitchLed = true;
       EngineStarted = false;
@@ -543,14 +550,22 @@ void Task1Scan(void * pvParameters){
       //Serial.print("TaskUpdateInfo running on core ");
       //Serial.println(xPortGetCoreID());
     for(;;){
-    Serial.println("Scan.....");
-    IphoneDetect = false; // Réinitialisez la variable avant chaque balayage
-    proximityDeadZone = false; // Réinitialisez la variable avant chaque balayage
-    BleDataCheckTask();
-    IphoneDetectFunc();
+    voltage();
+    if (!IgnitionStarted || !AccyStarted )
+    {
+      Serial.println("Scan.....");
+      IphoneDetect = false; // Réinitialisez la variable avant chaque balayage
+      proximityDeadZone = false; // Réinitialisez la variable avant chaque balayage
+      BleDataCheckTask();
+      IphoneDetectFunc();
+    }
+    else { 
+      Serial.println("STOP SCAN");
+      delay(2000);
+      }
     if (deviceConnected)
       {
-        voltage();
+        //voltage();
         DiagCharacteristic->setValue(String(Voltage).c_str());
         Serial.println(Voltage);
         DiagCharacteristic->notify();
@@ -589,8 +604,6 @@ void setup() {
   button.attachLongPressStart(pressStart);
   button.attachLongPressStop(pressStop);
 
-  // Underclock CPU to Energize save
-  //setCpuFrequencyMhz(80);
   // Initialise le BLE
   BLEDevice::init("KeyLess Car");
   BLEDevice::setEncryptionLevel(ESP_BLE_SEC_ENCRYPT);
@@ -603,36 +616,11 @@ void setup() {
   BLEService *pService = pServer->createService(BLEUUID(SERVICE_UUID), 30, 0);
 
   // Crée le caractéristique BLE
-  unlockCharacteristic = pService->createCharacteristic(
-                                      CHARACTERISTIC_UUID,
-                                      BLECharacteristic::PROPERTY_READ |
-                                      BLECharacteristic::PROPERTY_WRITE |
-                                      BLECharacteristic::PROPERTY_NOTIFY
-                  );
-  autoCharacteristic = pService->createCharacteristic(
-                                      AUTOUNLOCK_CHARACTERISTIC_UUID,
-                                      BLECharacteristic::PROPERTY_READ |
-                                      BLECharacteristic::PROPERTY_WRITE |
-                                      BLECharacteristic::PROPERTY_NOTIFY
-                  );
-  autoRunCharacteristic = pService->createCharacteristic(
-                                      AUTOLOCKRUN_CHARACTERISTIC_UUID,
-                                      BLECharacteristic::PROPERTY_READ |
-                                      BLECharacteristic::PROPERTY_WRITE |
-                                      BLECharacteristic::PROPERTY_NOTIFY
-                  );
-  DiagCharacteristic = pService->createCharacteristic(
-                                      DIAGMODE_CHARACTERISTIC_UUID,
-                                      BLECharacteristic::PROPERTY_READ |
-                                      BLECharacteristic::PROPERTY_WRITE |
-                                      BLECharacteristic::PROPERTY_NOTIFY
-                  );
-  PinCharacteristic = pService->createCharacteristic(
-                                      PIN_CHARACTERISTIC_UUID,
-                                      BLECharacteristic::PROPERTY_READ |
-                                      BLECharacteristic::PROPERTY_WRITE |
-                                      BLECharacteristic::PROPERTY_NOTIFY
-                  );
+  unlockCharacteristic = pService->createCharacteristic(CHARACTERISTIC_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_NOTIFY);
+  autoCharacteristic = pService->createCharacteristic(AUTOUNLOCK_CHARACTERISTIC_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_NOTIFY);
+  autoRunCharacteristic = pService->createCharacteristic(AUTOLOCKRUN_CHARACTERISTIC_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_NOTIFY);
+  DiagCharacteristic = pService->createCharacteristic(DIAGMODE_CHARACTERISTIC_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_NOTIFY);
+  PinCharacteristic = pService->createCharacteristic(PIN_CHARACTERISTIC_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_NOTIFY);
   // Définit la Callback pour le securite
   unlockCharacteristic->setAccessPermissions(ESP_GATT_PERM_READ_ENCRYPTED | ESP_GATT_PERM_WRITE_ENCRYPTED);
   autoCharacteristic->setAccessPermissions(ESP_GATT_PERM_READ_ENCRYPTED | ESP_GATT_PERM_WRITE_ENCRYPTED);
@@ -669,15 +657,8 @@ void setup() {
   bleSecurity();
   Serial.println("Bluetooth Server ok");
 
-    //------------------------TASK TO START ENGINE------------------------
-  xTaskCreatePinnedToCore(
-                  Task1Scan,   /* Task function. */
-                  "Task1Scan",     /* name of task. */
-                  10000,       /* Stack size of task */
-                  NULL,        /* parameter of the task */
-                  1,           /* priority of the task */
-                  &Task1,      /* Task handle to keep track of created task */
-                  0);          /* pin task to core 0 */             
+    //------------------------TASK TO START ENGINE------------------------ 
+  xTaskCreatePinnedToCore(Task1Scan, "Task1Scan", 10000, NULL, 1, &Task1, 0);          
 
 }
 
@@ -693,11 +674,11 @@ void loop() {
     sleepModeFunc();
     AutoShutdownAccyIgn();
     //check if Engine run with key
-    if (Voltage >= 13.5 && !IgnitionStarted)
+    //voltage();
+    /*if (!IgnitionStarted && carOpen)
     {
-      voltage();
       checkEngineStart();
-    }
+    }*/
     
   }
 
@@ -709,6 +690,5 @@ void loop() {
     } 
   }
 
-  
   delay(10);
 }

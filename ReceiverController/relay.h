@@ -25,7 +25,6 @@ void Accy(uint8_t value);
 void engineSwitchLed(int value);
 void diagMode(uint8_t value);
 
-
 extern void NotifUnlockFunc(int value);
 
 #endif

@@ -62,7 +62,7 @@ void UnLockRelay() {
     delay(1000);
     digitalWrite(relayUnlock, HIGH);
     carOpen = true;
-    NotifUnlockFunc(1);
+    NotifUnlockFunc(1); // Fonction in main.cpp to change setvalue and noti bluetooth
     StateAutoLockRun = false;
     Serial.println("### Unlock ###");
     delay(500);
@@ -73,7 +73,7 @@ void LockRelay() {
     delay(1000);
     digitalWrite(relayLock, HIGH);
     carOpen = false;
-    NotifUnlockFunc(0);
+    NotifUnlockFunc(0); // Fonction in main.cpp to change setvalue and noti bluetooth
     Serial.println("### Lock ###");
     delay(500);
 };

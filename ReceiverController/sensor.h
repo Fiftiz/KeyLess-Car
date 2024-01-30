@@ -23,5 +23,9 @@ void AutoShutdownAccyIgn();
 void sleepModeFunc();
 void SpeedoFunc();
 void RpmFunc();
+void DoorSwitchFunc();
+void checkOpenCar();
+
+extern void NotifUnlockFunc(int value);
 
 #endif

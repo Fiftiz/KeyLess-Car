@@ -30,7 +30,7 @@ extern bool BlinkSwitchLed;
 extern bool carOpen;
 
 //PIN INPUT Voltage sensor
-const int voltageSensor = 35;        //Sur PIN15
+const int voltageSensor = 35;
 float VoltT;
 extern float Voltage;
 float Offset = -0.18;
@@ -45,20 +45,26 @@ const int tachymetre = 39;
 float VoltTachy;
 float Rpm;
 
+//Input tachymeter
+const int doorSwitchPin = 36;
+float VoltDoorSwitch;
+float doorSwitch;
+
 //Timer Auto Shutdown
 unsigned long AS_previousMillis = 0;
-bool AS_currentTimer = true;
+bool AS_StartTimer = false;
 
 // SleepMode
-bool SleepModeReady;
+bool SleepModeReady = false;
 unsigned long SM_previousMillis = 0;
-bool SM_currentTimer = true;
+bool SM_startTimer = false;
 
 
 void initpinsensor(){ 
   pinMode(voltageSensor, INPUT);
   pinMode(Speedometre, INPUT);
   pinMode(tachymetre, INPUT);
+  pinMode (doorSwitchPin, INPUT);
 };
 /////////////////////////////////
 ////////VOLTAGE CALCULATE////////
@@ -140,9 +146,9 @@ void AutoLockRun(){
   } 
 };
 
-//////////////////////////////////////
+//////////////////////////////
 ////////RPM METER/////////////
-//////////////////////////////////////
+//////////////////////////////
 void RpmFunc(){
 VoltTachy = analogRead(tachymetre) * 3.3 / 4096.0;
 Rpm = VoltTachy * 7000 / 3.3;
@@ -152,21 +158,38 @@ Rpm = VoltTachy * 7000 / 3.3;
 //Serial.println(Rpm);
 };
 
+
 //////////////////////////////////////
-////////AUTO SHUTDOWN ACCY IGN////////
+////////DOOR SWITCH ALARM/////////////
+//////////////////////////////////////
+void DoorSwitchFunc(){
+VoltDoorSwitch = analogRead(doorSwitchPin) * 3.3 / 4096.0;
+doorSwitch = VoltDoorSwitch * 16.5 / 3.3;
+};
+
+void checkOpenCar(){
+  if (doorSwitch >= 10 && !carOpen)
+  {
+    carOpen = true;
+    NotifUnlockFunc(1);
+  }
+};
+
+/////////////////////////////////////
+////////AUTO SHUTDOWN ACCY IGN///////
 /////////////////////////////////////
 void AutoShutdownAccyIgn(){
   if (IgnitionStarted || AccyStarted)
   {
-      if (AS_currentTimer)
+      if (!AS_StartTimer)
       {
         AS_previousMillis = millis();
-        AS_currentTimer = false;
+        AS_StartTimer = true;
       }
-      if (!AS_currentTimer)
+      if (AS_StartTimer)
       {
-        unsigned long AS_currentMillis = millis();
-        if (AS_currentMillis - AS_previousMillis >= 600000) { // 600000ms = 10 minutes
+          unsigned long AS_currentMillis = millis();
+          if (AS_currentMillis - AS_previousMillis >= 600000) { // 600000ms = 10 minutes
               Serial.print("Auto ShutDown Accy/Ignition");
               Ignition3(LOW);
               Accy(LOW);
@@ -175,11 +198,14 @@ void AutoShutdownAccyIgn(){
               engineSwitchLed(0);
               IgnitionStarted = false;
               AccyStarted = false;
-              AS_currentTimer = true;
+              AS_StartTimer = false;
         }
       }
   }
-  
+  else if (!IgnitionStarted && !AccyStarted && AS_StartTimer)
+  {
+    AS_StartTimer = false;
+  }
 };
 //////////////////////////
 ////////SLEEP MODE////////
@@ -193,25 +219,25 @@ void sleepModeFunc(){
       SleepModeReady = false;
       Serial.println("########### Power Mode");
     } 
-    if (!SleepModeReady) {
-      SM_currentTimer = true;
+    else if (!SleepModeReady && SM_startTimer) {
+      SM_startTimer = false;
     }
   }
-  if (!carOpen && !IgnitionStarted && !SleepModeReady)
+  else if (!carOpen && !IgnitionStarted && !SleepModeReady)
   {
-        if (SM_currentTimer)
+        if (!SM_startTimer)
         {
           SM_previousMillis = millis();
-          SM_currentTimer = false;
+          SM_startTimer = true;
         }
-        if (!SM_currentTimer)
+        if (SM_startTimer)
         {        
           unsigned long SM_currentMillis = millis();
           if (SM_currentMillis - SM_previousMillis >= 600000) { // 600000ms = 10 minutes
               // Clock CPU to Energize save
               setCpuFrequencyMhz(80);
               Serial.println("########### Sleep Mode");
-              SM_currentTimer = true;
+              SM_startTimer = false;
               SleepModeReady = true;
           }
         }
